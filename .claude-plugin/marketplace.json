@@ -1,7 +1,9 @@
 {
   "name": "bar-mods",
-  "description": "Claude Code mods by Bar Moshe: live panes, bands and guards that run inside Claude Code.",
-  "owner": { "name": "Bar Moshe" },
+  "description": "Claude Code mods by Bar Moshe: live panes, bands and a workbench for building mods, all running inside Claude Code.",
+  "owner": {
+    "name": "Bar Moshe"
+  },
   "plugins": [
     {
       "name": "turn-meter",
@@ -12,6 +14,11 @@
       "name": "mission-control",
       "description": "A live pane: context ring, session cost, a colored timeline of every tool call, files edited, and a sports-commentator recap of each turn.",
       "source": "./mission-control"
+    },
+    {
+      "name": "modsmith",
+      "description": "A workbench for building Claude Code mods: which mods loaded, a live tape of every event with its real payload, the four ship gates on the mod in progress, and tools so Claude can read payloads and run the gates itself.",
+      "source": "./modsmith"
     }
   ]
 }

@@ -17,9 +17,10 @@ claude plugin install mission-control@bar-mods
 | Mod | What it does | Reach |
 | :- | :- | :- |
 | [turn-meter](turn-meter/) | A band above the prompt. While Claude works it shows the tool running now; after the turn, a one-line summary: seconds, tool calls, and the top tools by count. `/turn-meter` hides it. | Draws and remembers only |
+| [modsmith](modsmith/) | A workbench for building mods: which mods loaded, a live tape of every event with its real payload, the four ship gates on the mod in progress (`/gates`), and tools so Claude reads real payloads and runs the gates itself. | Starts local processes (`claude`, `npx`), reads mod folders and settings; no model calls |
 | [mission-control](mission-control/) | A pane beside the transcript: an animated context ring, the session's cost, a colored timeline of every tool call (hover a square to see what it did), the files edited, and a sports-commentator recap of each turn. `/mission` opens it. | Draws, remembers, and makes one small Haiku call per turn (mutable) |
 
-"Reach" is what a mod can touch, read from `claude plugin validate`. None of these mods start processes, read your files, or reach the network.
+"Reach" is what a mod can touch, read from `claude plugin validate`. turn-meter and mission-control start no processes, read no files and never reach the network. modsmith runs the gates, so it starts local processes; its README says exactly what it touches.
 
 ## How each mod is checked
 

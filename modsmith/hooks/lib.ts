@@ -108,13 +108,32 @@ export const summarize = (event: string, e: Record<string, unknown>) => {
   }
 }
 
+// Split on commas outside {...} and (...): `ui.render{component=Pane, requestId=x}`, `$.fs.read (via a, b)`.
+export const splitTop = (list: string) => {
+  const out: string[] = []
+  let depth = 0
+  let cur = ''
+  for (const ch of list) {
+    if (ch === '{' || ch === '(') depth += 1
+    if (ch === '}' || ch === ')') depth = Math.max(0, depth - 1)
+    if (ch === ',' && depth === 0) {
+      out.push(cur.trim())
+      cur = ''
+    } else {
+      cur += ch
+    }
+  }
+  out.push(cur.trim())
+  return out.filter(Boolean)
+}
+
 // `claude plugin validate` output: green, the footprint lines, and any warnings.
 export const parseValidate = (exitCode: number, out: string) => {
   const lines = out.split('\n')
   const pick = (label: string) =>
     lines
       .filter(l => l.includes(` ${label}: `) && l.includes('❯'))
-      .flatMap(l => (l.split(` ${label}: `)[1] ?? '').split(',').map(s => s.trim()).filter(Boolean))
+      .flatMap(l => splitTop(l.split(` ${label}: `)[1] ?? ''))
   const warnings = lines.filter(l => /⚠|warning/i.test(l) && !/passed/i.test(l))
   const hasPassed = /Validation passed/.test(out) && !/with warnings/.test(out)
   return {
@@ -179,7 +198,7 @@ export const formatGates = (
   return lines.join('\n')
 }
 
-export const resolveDir = (dir: string, cwd: string, home: string) => {
+export const resolveDir = (dir: string, cwd: string, home: string): string => {
   const trimmed = dir.trim().replace(/(\/\.)+$/, '').replace(/\/+$/, '')
   if (trimmed === '' || trimmed === '.') return cwd
   if (trimmed.startsWith('./')) return resolveDir(trimmed.slice(2), cwd, home)

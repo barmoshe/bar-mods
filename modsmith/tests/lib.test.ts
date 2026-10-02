@@ -7,6 +7,7 @@ import {
   isOlder,
   parseTsc,
   parseValidate,
+  splitTop,
   redact,
   resolveDir,
   staleFootprint,
@@ -78,4 +79,10 @@ test('resolveDir and formatGates', async () => {
   expect(resolveDir('./x/.', '/work', '/Users/me')).toBe('/work/x')
   const text = formatGates('/m', { validate: { status: 'pass', ms: 1200, tail: '' }, tests: { status: 'fail', tail: 'boom' } }, ['bump it'])
   expect(text).toBe('modsmith gates on /m\n✓ validate 1.2s\n✗ tests\n    boom\n! bump it')
+})
+
+test('splitTop keeps matchers and via-lists whole', async () => {
+  expect(splitTop('ui.render{component=Pane, requestId=x}, tool.call')).toEqual(['ui.render{component=Pane, requestId=x}', 'tool.call'])
+  expect(splitTop('$.fs.exists (via a, b), $.ui.open')).toEqual(['$.fs.exists (via a, b)', '$.ui.open'])
+  expect(staleFootprint('ui.render fs.exists ui.open', ['ui.render{component=Pane, requestId=x}'], ['$.fs.exists (via a, b)', '$.ui.open'])).toEqual([])
 })
