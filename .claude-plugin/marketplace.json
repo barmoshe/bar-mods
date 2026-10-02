@@ -1,0 +1,17 @@
+{
+  "name": "bar-mods",
+  "description": "Claude Code mods by Bar Moshe: live panes, bands and guards that run inside Claude Code.",
+  "owner": { "name": "Bar Moshe" },
+  "plugins": [
+    {
+      "name": "turn-meter",
+      "description": "A band above the prompt: the tool running now during a turn, and a one-line summary of the last turn after it.",
+      "source": "./turn-meter"
+    },
+    {
+      "name": "mission-control",
+      "description": "A live pane: context ring, session cost, a colored timeline of every tool call, files edited, and a sports-commentator recap of each turn.",
+      "source": "./mission-control"
+    }
+  ]
+}

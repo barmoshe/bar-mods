@@ -1,0 +1,11 @@
+{
+  "name": "turn-meter",
+  "version": "0.2.0",
+  "description": "A band above the prompt: the tool running now during a turn, and a one-line summary of the last turn after it",
+  "author": { "name": "Bar Moshe" },
+  "license": "MIT",
+  "homepage": "https://github.com/barmoshe/bar-mods/tree/main/turn-meter",
+  "repository": "https://github.com/barmoshe/bar-mods",
+  "keywords": ["mod", "band", "turn", "tool-calls"],
+  "types": "./types/index.d.ts"
+}

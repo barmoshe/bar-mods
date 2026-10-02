@@ -1,0 +1,11 @@
+{
+  "name": "mission-control",
+  "version": "0.2.0",
+  "description": "A live pane: context ring, session cost, a colored timeline of every tool call, files edited, and a sports-commentator recap of each turn",
+  "author": { "name": "Bar Moshe" },
+  "license": "MIT",
+  "homepage": "https://github.com/barmoshe/bar-mods/tree/main/mission-control",
+  "repository": "https://github.com/barmoshe/bar-mods",
+  "keywords": ["mod", "pane", "context", "cost", "timeline"],
+  "types": "./types/index.d.ts"
+}
