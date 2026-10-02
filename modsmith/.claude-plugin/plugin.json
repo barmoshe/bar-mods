@@ -1,0 +1,48 @@
+{
+  "name": "modsmith",
+  "version": "0.1.0",
+  "description": "A workbench for building Claude Code mods: which mods loaded, a live tape of every event with its real payload, the four ship gates on the mod in progress, and tools so Claude can read payloads and run the gates itself",
+  "author": { "name": "Bar Moshe" },
+  "license": "MIT",
+  "homepage": "https://github.com/barmoshe/bar-mods/tree/main/modsmith",
+  "repository": "https://github.com/barmoshe/bar-mods",
+  "keywords": ["mod", "devtools", "debugger", "plugin-validate", "plugin-test"],
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "tools": {
+      "type": "boolean",
+      "title": "Tools for Claude",
+      "description": "Register the events, gates and mods tools so Claude can read real payloads and run the gates itself. Their descriptions add a few hundred tokens to every request.",
+      "required": false,
+      "default": true
+    },
+    "autoValidate": {
+      "type": "boolean",
+      "title": "Validate on reload",
+      "description": "Run claude plugin validate on a dev mod each time it reloads, for the band above the prompt.",
+      "required": false,
+      "default": true
+    },
+    "recordAppends": {
+      "type": "boolean",
+      "title": "Record transcript rows",
+      "description": "Also record session.append, which fires on every transcript row and floods the tape.",
+      "required": false,
+      "default": false
+    },
+    "cliPath": {
+      "type": "string",
+      "title": "claude executable",
+      "description": "The claude CLI the gates run, when it is not on the app's PATH.",
+      "required": false,
+      "default": "claude"
+    },
+    "npxPath": {
+      "type": "string",
+      "title": "npx executable",
+      "description": "The npx the types gate runs, when it is not on the app's PATH.",
+      "required": false,
+      "default": "npx"
+    }
+  }
+}

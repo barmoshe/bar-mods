@@ -1,0 +1,1 @@
+{ "description": "The modsmith hooks module", "modules": ["./register.tsx"] }
