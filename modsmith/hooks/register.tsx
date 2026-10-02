@@ -25,6 +25,8 @@ import {
 const ME = 'modsmith'
 const PANE = 'modsmith'
 const TOOL_PREFIX = 'mcp__modsmith__'
+// A dev mod: loaded by --plugin-dir or hot reload (@inline), or by claude plugin test.
+const isDev = (provenance: string) => /@(inline|claude-plugin-test)$/.test(provenance)
 const IDLE: Gate = { status: 'idle', tail: '' }
 const FAMILIES: Family[] = ['tools', 'turns', 'session', 'ui', 'plugins', 'commands', 'agents']
 
@@ -103,7 +105,7 @@ async function shipCheck($: EngineInterface, dir: string, hooks: string[], calls
     const raw = await $.fs.read(`${dir}/.claude-plugin/plugin.json`)
     const manifest = JSON.parse(typeof raw === 'string' ? raw : '{}') as { name?: string; version?: string }
     const installed = (await read($, mods)).find(
-      m => m.name === manifest.name && m.source !== 'disk' && !m.provenance.endsWith('@inline'),
+      m => m.name === manifest.name && m.source !== 'disk' && !isDev(m.provenance),
     )
     if (installed?.version !== undefined && installed.version === manifest.version) {
       notes.push(`Installed ${installed.provenance} is also ${installed.version}: bump the version before reinstalling`)
@@ -304,7 +306,7 @@ export const register: Register = (on, options) => {
       return [{ ...mod, reloads: old ? old.reloads + 1 : 0 }, ...list.filter(m => m.provenance !== mod.provenance)]
     })
 
-    if (e.provenance.endsWith('@inline')) {
+    if (isDev(e.provenance)) {
       await update($, lastReload, () => ({
         name: e.name,
         root: e.root,
@@ -446,7 +448,7 @@ export const register: Register = (on, options) => {
     const rows = list.filter(x => only === 'all' || x.family === only)
     const chosen = rows.find(x => x.id === pick) ?? null
     const present = FAMILIES.filter(f => list.some(x => x.family === f))
-    const devs = roster.filter(m => m.provenance.endsWith('@inline') && m.root)
+    const devs = roster.filter(m => isDev(m.provenance) && m.root)
 
     const runAll = () => {
       if (dir) runGates($, dir, GATE_NAMES).catch(() => undefined)
@@ -518,7 +520,7 @@ export const register: Register = (on, options) => {
               <Text color={m.source === 'seen' ? '#2fbf71' : undefined} dimColor={m.source !== 'seen'} wrap="truncate-end">
                 {`${m.provenance}${m.version ? ` ${m.version}` : ''} · ${m.source}${m.source === 'seen' ? ` · ${m.events.length} hooks · ${m.calls.length} calls · ↻${m.reloads}` : ''}`}
               </Text>
-              {m.root && m.root !== dir && (m.provenance.endsWith('@inline') || devs.length === 0) && (
+              {m.root && m.root !== dir && (isDev(m.provenance) || devs.length === 0) && (
                 <Button key={`target-${i}`} plain label="target" onPress={() => update($, target, () => m.root)} />
               )}
             </Box>

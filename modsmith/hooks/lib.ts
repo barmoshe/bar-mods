@@ -180,7 +180,9 @@ export const formatGates = (
 }
 
 export const resolveDir = (dir: string, cwd: string, home: string) => {
-  const trimmed = dir.trim().replace(/\/+$/, '')
+  const trimmed = dir.trim().replace(/(\/\.)+$/, '').replace(/\/+$/, '')
+  if (trimmed === '' || trimmed === '.') return cwd
+  if (trimmed.startsWith('./')) return resolveDir(trimmed.slice(2), cwd, home)
   if (trimmed.startsWith('~/')) return `${home}/${trimmed.slice(2)}`
   if (trimmed.startsWith('/')) return trimmed
   return cwd ? `${cwd}/${trimmed}` : trimmed
