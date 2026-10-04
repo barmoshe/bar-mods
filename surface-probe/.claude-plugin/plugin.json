@@ -1,0 +1,11 @@
+{
+  "name": "surface-probe",
+  "version": "0.1.0",
+  "description": "A pane that shows what this surface does before you design for it: its width and placement, which elements it draws, right-to-left text, SVG, and whether a button can send Claude a message",
+  "author": { "name": "Bar Moshe" },
+  "license": "MIT",
+  "homepage": "https://github.com/barmoshe/bar-mods/tree/main/surface-probe",
+  "repository": "https://github.com/barmoshe/bar-mods",
+  "keywords": ["mod", "pane", "devtools", "rtl", "surface"],
+  "types": "./types/index.d.ts"
+}

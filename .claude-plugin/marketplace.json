@@ -19,6 +19,11 @@
       "name": "modsmith",
       "description": "A workbench for building Claude Code mods: which mods loaded, a live tape of every event with its real payload, the four ship gates on the mod in progress, and tools so Claude can read payloads and run the gates itself.",
       "source": "./modsmith"
+    },
+    {
+      "name": "surface-probe",
+      "description": "A pane to open before designing for a surface: its width and placement, right-to-left text, SVG, and whether a button can send Claude a message.",
+      "source": "./surface-probe"
     }
   ]
 }
