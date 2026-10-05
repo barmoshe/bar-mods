@@ -24,6 +24,11 @@
       "name": "surface-probe",
       "description": "A pane to open before designing for a surface: its width and placement, right-to-left text, SVG, and whether a button can send Claude a message.",
       "source": "./surface-probe"
+    },
+    {
+      "name": "rtl-kit",
+      "description": "Right-to-left for mods: one file to copy into a mod so Hebrew and Arabic read right, wrap right-aligned, and draw as cards, tabs, tables, markdown and SVG timelines, in the terminal too.",
+      "source": "./rtl-kit"
     }
   ]
 }
