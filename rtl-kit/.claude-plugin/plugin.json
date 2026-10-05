@@ -1,11 +1,21 @@
 {
   "name": "rtl-kit",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Right-to-left for Claude Code mods: one file to copy into a mod that orders Hebrew and Arabic right on every surface, aligns wrapped text right, draws markdown, cards, tabs, tables and SVG headers, and reorders text for the terminal",
-  "author": { "name": "Bar Moshe" },
+  "author": {
+    "name": "Bar Moshe"
+  },
   "license": "MIT",
   "homepage": "https://github.com/barmoshe/bar-mods/tree/main/rtl-kit",
   "repository": "https://github.com/barmoshe/bar-mods",
-  "keywords": ["mod", "rtl", "hebrew", "arabic", "bidi", "design", "pane"],
+  "keywords": [
+    "mod",
+    "rtl",
+    "hebrew",
+    "arabic",
+    "bidi",
+    "design",
+    "pane"
+  ],
   "types": "./types/index.d.ts"
 }

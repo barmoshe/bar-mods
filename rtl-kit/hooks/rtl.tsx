@@ -1,4 +1,4 @@
-// rtl-kit 0.1.0: right-to-left text and a small design language for Claude Code mods.
+// rtl-kit 0.1.1: right-to-left text and a small design language for Claude Code mods.
 // https://github.com/barmoshe/bar-mods/tree/main/rtl-kit
 //
 // Copy this one file into your mod's hooks/ folder and import from './rtl'. It imports nothing at
@@ -408,9 +408,9 @@ export function kit(el: Els, e: { surface: Surface; props?: { bodyColumns?: numb
   const cols = e.props?.bodyColumns ?? 80
   const width = Math.max(16, Math.floor(cols * (opts.charsPerColumn ?? (isTerminal ? 1 : 0.9))))
   const b = (s: string) => bidi(s, surface, opts)
-  const run = (f: Press) => () => {
-    void f()
-  }
+  // The press hands back what the handler returns, so the engine (and a test's press) can wait for
+  // it; dropping the promise lets work run on after the press and its errors go unhandled.
+  const run = (f: Press) => () => f()
 
   const text = (s: string, props: Record<string, unknown> = {}) => <Text {...props}>{b(s)}</Text>
 
@@ -444,9 +444,10 @@ export function kit(el: Els, e: { surface: Surface; props?: { bodyColumns?: numb
     <Button key={key} label={b(label)} dimColor onPress={run(onPress)} {...props} />
 
   // A list row you press: the label as a plain button, a muted line under it.
+  // The button carries `key`, so the caller presses the key it passed.
   const item = (key: string, label: string, onPress: Press, meta?: string) => (
-    <Box key={key} flexDirection="column" alignItems="flex-end">
-      <Button key={`${key}:btn`} label={b(label)} plain onPress={run(onPress)} />
+    <Box key={`${key}:item`} flexDirection="column" alignItems="flex-end">
+      <Button key={key} label={b(label)} plain onPress={run(onPress)} />
       {meta ? para(`${key}:meta`, meta, { color: tone.muted }) : null}
     </Box>
   )
