@@ -18,7 +18,7 @@ A mod draws with Claude Code's own elements, and none of them takes a text direc
 claude plugin install rtl-kit@bar-mods
 ```
 
-The plugin brings a skill, `rtl-kit`, that copies `hooks/rtl.tsx` into the mod you are building and uses it. By hand:
+The plugin brings a skill, `rtl-kit`, that copies `hooks/rtl.tsx` into the mod you are building and uses it (with Read and Write: a shell `cp` out of `~/.claude/` is refused). By hand:
 
 ```bash
 cp ~/.claude/plugins/marketplaces/bar-mods/rtl-kit/hooks/rtl.tsx <your-mod>/hooks/rtl.tsx
@@ -39,7 +39,7 @@ on('ui.render', { component: 'Pane', requestId: 'mine' }, async ($, e) => {
 
 The copied file has no run-time imports and takes no `$`, so the mod needs nothing else installed. Re-copy it to upgrade; its first line names the version.
 
-`/rtl-kit` opens a gallery of every piece on the current surface, and a ruler to see how many characters fit a line.
+`/rtl-gallery` opens a gallery of every piece on the current surface, and a ruler to see how many characters fit a line.
 
 ## What it does outside the pane
 
@@ -49,7 +49,7 @@ Nothing. The gallery draws, remembers which tab is open, and reads Claude Code's
 
 From `claude plugin validate`:
 
-- **hooks:** `session.start`, `command.run{command=rtl-kit}`, `ui.render{component=Pane, requestId=rtl-kit}`
+- **hooks:** `session.start`, `command.run{command=rtl-gallery}`, `ui.render{component=Pane, requestId=rtl-kit}`
 - **calls:** `$.command.register`, `$.config.list`, `$.state.get`, `$.state.set`, `$.ui.open`, `$.ui.resolve`
 
 ## Limits

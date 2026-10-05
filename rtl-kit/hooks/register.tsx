@@ -1,4 +1,4 @@
-// rtl-kit's demo: /rtl-kit opens a gallery of every piece of the kit on this surface, and a ruler
+// rtl-kit's demo: /rtl-gallery opens a gallery of every piece of the kit on this surface, and a ruler
 // to measure how many characters fit a line. The kit itself is ./rtl.tsx, the file a mod copies.
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
@@ -44,12 +44,13 @@ const SAMPLE_MD = `# נוהל לדוגמה
 
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'rtl-kit', description: 'Open the RTL kit gallery: every piece of the kit on this surface' })
+    // Not /rtl-kit: the plugin's skill, rtl-kit, holds that name (a register refuses it).
+    await $.command.register({ name: 'rtl-gallery', description: 'Open the RTL kit gallery: every piece of the kit on this surface' })
     return next(e)
   })
 
   // Opened without `focus`: a pane holding the keyboard can hold back queued prompts.
-  on('command.run', { command: 'rtl-kit' }, async $ => {
+  on('command.run', { command: 'rtl-gallery' }, async $ => {
     const r = await $.ui.open({ id: PANE, title: 'rtl-kit', columns: 200 })
     return { text: r.isPlaced ? 'rtl-kit is open.' : `rtl-kit did not open: ${r.reason}` }
   })

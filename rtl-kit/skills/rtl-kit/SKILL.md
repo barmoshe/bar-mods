@@ -18,14 +18,13 @@ The kit fixes each of these, and adds a small design language so a pane looks cu
 
 ## Use it
 
-1. Copy the kit into the mod. It is one file with no run-time imports:
-
-   ```bash
-   cp "<this skill's base directory>/../../hooks/rtl.tsx" <mod>/hooks/rtl.tsx
-   ```
-
-   The base directory is printed when this skill loads. Keep the file's first line (it carries the
-   version); re-copy to upgrade.
+1. Copy the kit into the mod: **Read** `<this skill's base directory>/../../hooks/rtl.tsx` and **Write**
+   it unchanged to `<mod>/hooks/rtl.tsx`. It is one file with no run-time imports. (Use Read and
+   Write, not `cp`: an installed plugin lives under `~/.claude/`, where a shell copy is refused.) The
+   base directory is printed when this skill loads. Keep the file's first line (it carries the
+   version); copy it again to upgrade. Never write a smaller version of it inline: the terminal
+   reordering and the markdown renderer would be lost. (A Write may turn its `\uXXXX` escapes into the
+   characters themselves; that is the same code.)
 2. Build the kit once per draw, from the render event:
 
    ```tsx
@@ -85,7 +84,7 @@ Pure helpers: `bidi`, `visual`, `wrap`, `hasRtl`, `stripMarks`, `asStored`, `par
 
 ## Check it
 
-Open `/rtl-kit` (this plugin's gallery) on the surface you target to see every piece, and its ruler to
+Open `/rtl-gallery` (this plugin's gallery) on the surface you target to see every piece, and its ruler to
 measure how many characters fit a line. The `charsPerColumn` option (default 0.9 on the desktop)
 sets the wrap width; Hebrew letters run a little wider than digits.
 

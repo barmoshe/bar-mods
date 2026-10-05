@@ -22,12 +22,12 @@
 
 export type Surface = 'terminal' | 'desktop' | 'vscode' | 'mobile' | string
 
-const RTL_CHAR = /[֐-׿؀-ۿݐ-ݿࢠ-ࣿיִ-﷿ﹰ-﻿]/
-const LATIN_CHAR = /[A-Za-zÀ-ɏͰ-ϿЀ-ӿ]/
-const DIGIT = /[0-9٠-٩۰-۹]/
-const MARKS = /[‎‏‪-‮⁦-⁩]/g
-const RLE = '‫'
-const PDF = '‬'
+const RTL_CHAR = /[\u0590-\u05FF\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/
+const LATIN_CHAR = /[A-Za-z\u00C0-\u024F\u0370-\u03FF\u0400-\u04FF]/
+const DIGIT = /[0-9\u0660-\u0669\u06F0-\u06F9]/
+const MARKS = /[\u200E\u200F\u202A-\u202E\u2066-\u2069]/g
+const RLE = '\u202B'
+const PDF = '\u202C'
 
 export const hasRtl = (s: string) => RTL_CHAR.test(s)
 // Shows a string exactly in stored order on a surface that does bidi (a preview of terminal output).
@@ -395,7 +395,7 @@ type Press = () => unknown
 
 export type KitOptions = BidiOptions & {
   // How many characters fit in one of the pane's columns, for wrapping long text yourself
-  // (measured with /rtl-kit's ruler; proportional fonts make this an estimate).
+  // (measured with the /rtl-gallery ruler; proportional fonts make this an estimate).
   charsPerColumn?: number
 }
 
