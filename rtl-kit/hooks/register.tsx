@@ -4,7 +4,7 @@ import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
 import type { RtlKitDemo } from '../types'
-import { kit, schemeOf, svgHeader, svgTimeline, visual } from './rtl'
+import { asStored, kit, schemeOf, svgHeader, svgTimeline, visual } from './rtl'
 
 const PANE = 'rtl-kit'
 const demo = atom({ plugin: 'rtl-kit', key: 'demo' } as const, { section: 'text', pressed: null } as RtlKitDemo)
@@ -58,8 +58,8 @@ export const register: Register = on => {
     const el = $.ui.resolve(e)
     const k = kit(el, e)
     const d = await read($, demo)
-    const theme = (await $.config.list()).find(r => r.key === 'theme')?.value
-    const scheme = schemeOf(theme)
+    // The theme setting is the terminal's; the desktop follows the system's colour scheme.
+    const scheme = e.surface === 'terminal' ? schemeOf((await $.config.list()).find(r => r.key === 'theme')?.value) : 'auto'
     const pick = (id: string) => update($, demo, x => ({ ...x, section: id }))
     const pressed = (what: string) => update($, demo, x => ({ ...x, pressed: what }))
     const { Box, Text } = el
@@ -131,14 +131,14 @@ export const register: Register = on => {
           k.svg('svg:head', head, 'כותרת: חדרים, יום שני'),
           <Box key="svg:gap" height={1} />,
           k.svg('svg:day', day, 'ציר זמן של החדרים היום'),
-          k.muted('svg:scheme', `ערכת צבעים: ${scheme} (מהגדרת theme של האפליקציה)`),
+          k.muted('svg:scheme', `ערכת צבעים: ${scheme} (לפי ערכת הצבעים של המערכת)`),
         ])
       }
     } else if (d.section === 'terminal') {
       const lines = [MIXED, ARABIC, 'סוגריים (בתוך) משפט · 10:00–12:00']
       body = k.col('term', [
-        k.para('term:what', 'כך נשלח לטרמינל: הסדר החזותי מחושב, כי הטרמינל מדפיס תווים לפי הסדר השמור.'),
-        ...lines.map((l, i) => <Text key={`term:${i}`}>{visual(l)}</Text>),
+        k.para('term:what', 'כך נשלח לטרמינל: הסדר החזותי מחושב, כי הטרמינל מדפיס תווים לפי הסדר השמור. כאן זה מוצג בדיוק כפי שהטרמינל ידפיס, ובטרמינל זה ייקרא נכון.'),
+        ...lines.map((l, i) => <Text key={`term:${i}`}>{k.isTerminal ? visual(l) : asStored(visual(l))}</Text>),
       ])
     } else {
       const ruler = (n: number) => Array.from({ length: n }, (_, i) => String((i + 1) % 10)).join('')

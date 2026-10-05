@@ -30,6 +30,8 @@ const RLE = '‫'
 const PDF = '‬'
 
 export const hasRtl = (s: string) => RTL_CHAR.test(s)
+// Shows a string exactly in stored order on a surface that does bidi (a preview of terminal output).
+export const asStored = (s: string) => `\u202D${s}\u202C`
 export const stripMarks = (s: string) => s.replace(MARKS, '')
 
 export type BidiOptions = {
@@ -374,7 +376,9 @@ export function svgTimeline(o: { lanes: Lane[]; blocks: Block[]; from?: number; 
   return { source, width, height }
 }
 
-// The app's theme, from `(await $.config.list()).find(r => r.key === 'theme')?.value`.
+// Claude Code's `theme` setting, from `(await $.config.list()).find(r => r.key === 'theme')?.value`.
+// It is the terminal's theme: the desktop app can be light while it says dark (seen 05/10), so on
+// the desktop leave the scheme 'auto' and let the system's colour scheme decide.
 export function schemeOf(theme: unknown): Scheme {
   const t = typeof theme === 'string' ? theme : ''
   return t.includes('dark') ? 'dark' : t.includes('light') ? 'light' : 'auto'
@@ -511,7 +515,7 @@ export function kit(el: Els, e: { surface: Surface; props?: { bodyColumns?: numb
       </Box>
     )
     return (
-      <Box key={key} flexDirection="column" borderStyle="round" borderColor={tone.line} marginBottom={1}>
+      <Box key={key} flexDirection="column" width="100%" borderStyle="round" borderColor={tone.line} marginBottom={1}>
         <Box key={`${key}:head`} flexDirection="row-reverse">
           {Array.from({ length: n }, (_, i) => cell(`${key}:head`, headers[i] ?? '', i, { bold: true, color: tone.muted }))}
         </Box>
