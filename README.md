@@ -46,3 +46,7 @@ Edits hot-reload while the session runs. An installed copy is cached by version,
 ## License
 
 MIT
+
+---
+
+Built by [Bar Moshe](https://bar-builds.com/?src=gh-bar-mods)
