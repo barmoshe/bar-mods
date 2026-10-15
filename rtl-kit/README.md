@@ -10,7 +10,7 @@ A mod draws with Claude Code's own elements. On the desktop app every element is
 - **Markdown:** `k.md()` draws headings, paragraphs, nested lists, quotes and tables with the pieces above.
 - **Design:** cards with hover, tabs, chips, stats, one primary button per screen, and colours from the app's theme keys, so light and dark both work.
 - **SVG:** a header with chips and a day timeline (lanes against hours, right to left), drawn where the surface has `Svg`.
-- **Terminal:** the visual order is computed (Latin words and numbers stay whole, brackets mirror), so Hebrew reads right there too. Where Claude Code already reorders (VS Code's terminal, Windows Terminal, conhost), pass `{ terminal: 'logical' }`, or it is reversed twice.
+- **Terminal:** the visual order is computed (Latin words and numbers stay whole, brackets mirror), so Hebrew reads right there too. Where Claude Code already reorders (VS Code's terminal and Windows Terminal: `TERM_PROGRAM=vscode` or `WT_SESSION` set), pass `{ terminal: 'logical' }`, or it is reversed twice. The gallery reads both variables when the session starts and does this itself.
 
 ## Use it
 
@@ -43,22 +43,23 @@ The copied file has no run-time imports and takes no `$`, so the mod needs nothi
 
 ## What it does outside the pane
 
-Nothing. The gallery draws, remembers which tab is open, and reads Claude Code's `theme` setting. No files, processes, network or model calls. The copied `rtl.tsx` makes no calls at all.
+Nothing. The gallery draws, remembers which tab is open, reads Claude Code's `theme` setting, and reads `TERM_PROGRAM` and `WT_SESSION` to know whether Claude Code orders the terminal's text itself. No files, processes, network or model calls. The copied `rtl.tsx` makes no calls at all.
 
 ## Footprint
 
 From `claude plugin validate`:
 
 - **hooks:** `session.start`, `command.run{command=rtl-gallery}`, `ui.render{component=Pane, requestId=rtl-kit}`
-- **calls:** `$.command.register`, `$.config.list`, `$.state.get`, `$.state.set`, `$.ui.open`, `$.ui.resolve`
+- **calls:** `$.command.register`, `$.config.list`, `$.env.get`, `$.state.get`, `$.state.set`, `$.ui.open`, `$.ui.resolve`
+- **env reads:** `TERM_PROGRAM`, `WT_SESSION`
 
 ## Still needed? (Claude Code 2.1.300)
 
-Claude Code 2.1.300 gave `Text` a `dir` prop: `dir="rtl"` sets the base direction, and where Claude Code orders the letters itself (VS Code's terminal, Windows) the rows also sit flush right. It does not replace the kit yet:
+Claude Code 2.1.300 gave `Text` a `dir` prop: `dir="rtl"` sets the base direction, and where Claude Code orders the letters itself (VS Code's terminal, Windows Terminal) the rows also sit flush right. It does not replace the kit yet:
 
 - **Desktop:** the app bundles its own Claude Code, and on 2026-10-15 that was 2.1.295, which refuses a whole drawing that names `dir`. The kit is the desktop's answer until the app moves; then `dir` on the desktop gets measured.
 - **macOS terminals:** `dir` changes nothing there (Claude Code leaves the order to the terminal), so the kit's visual order is still what makes Hebrew read right.
-- **VS Code's terminal and Windows:** Claude Code reorders, so use `{ terminal: 'logical' }` there, and `dir="rtl"` on a Text once every engine you target has it.
+- **VS Code's terminal and Windows Terminal:** Claude Code reorders (its test, read off 2.1.300 and 2.1.301: `WT_SESSION` set or `TERM_PROGRAM=vscode`; plain conhost sets neither), so use `{ terminal: 'logical' }` there, and `dir="rtl"` on a Text once every engine you target has it.
 
 ## Limits
 
@@ -68,6 +69,6 @@ Claude Code 2.1.300 gave `Text` a `dir` prop: `dir="rtl"` sets the base directio
 
 ## Surfaces
 
-Looked at in the desktop app's Code tab, every gallery tab. The terminal path is covered by the tests (both surfaces) and its reordering by expected strings; VS Code and the phone use the desktop's path and have not been looked at yet. In `claude -p` and the SDK its hooks run and nothing draws.
+Looked at in the desktop app's Code tab, every gallery tab. On the terminal, the gallery was read off the terminal buffer with `TERM_PROGRAM=vscode` (Claude Code's order) and without it (the kit's), and the tests cover both, Windows Terminal's `WT_SESSION` too. The VS Code extension's panel and the phone use the desktop's path and have not been looked at yet. In `claude -p` and the SDK its hooks run and nothing draws.
 
-Tested on Claude Code 2.1.289; tests re-run on 2.1.295 and 2.1.300, and the terminal path read on 2.1.300 (2026-10-15).
+Tested on Claude Code 2.1.289; tests re-run on 2.1.295, 2.1.300 and 2.1.301, and the terminal path read on 2.1.301 (2026-10-16).

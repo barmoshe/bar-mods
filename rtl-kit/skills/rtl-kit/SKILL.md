@@ -13,7 +13,9 @@ text direction. Measured on the desktop app (Claude Code 2.1.288–2.1.289, 2026
 - a line that wraps starts at the left;
 - `Markdown` is scrambled and left-aligned;
 - on the macOS terminals Claude Code prints Hebrew in stored order, so it reads reversed. (On
-  Windows Terminal, conhost and VS Code's terminal Claude Code reorders it itself, since 2.1.74.)
+  Windows Terminal and VS Code's terminal Claude Code reorders it itself, since 2.1.74: pass
+  `{ terminal: 'logical' }` to `kit()` when `WT_SESSION` is set or `TERM_PROGRAM` is `vscode`, read
+  with `$.env.get` in `session.start`, as the gallery's `hooks/register.tsx` does.)
 
 The kit fixes each of these, and adds a small design language so a pane looks current.
 

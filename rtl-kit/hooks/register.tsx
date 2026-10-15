@@ -3,11 +3,13 @@
 import { atom, read, update } from 'claude-code'
 import type { Register } from 'claude-code'
 
-import type { RtlKitDemo } from '../types'
+import type { RtlKitDemo, RtlKitTerminal } from '../types'
 import { asStored, kit, schemeOf, svgHeader, svgTimeline, visual } from './rtl'
 
 const PANE = 'rtl-kit'
 const demo = atom({ plugin: 'rtl-kit', key: 'demo' } as const, { section: 'text', pressed: null } as RtlKitDemo)
+// Who orders right-to-left text on the terminal: the kit ('visual') or Claude Code ('logical').
+const terminal = atom({ plugin: 'rtl-kit', key: 'terminal' } as const, 'visual' as RtlKitTerminal)
 
 const SECTIONS = [
   { id: 'text', label: 'טקסט' },
@@ -46,6 +48,10 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     // Not /rtl-kit: the plugin's skill, rtl-kit, holds that name (a register refuses it).
     await $.command.register({ name: 'rtl-gallery', description: 'Open the RTL kit gallery: every piece of the kit on this surface' })
+    // Claude Code's own test (2.1.300): it reorders in Windows Terminal and VS Code's terminal, so
+    // the kit computing the visual order there too would reverse it twice.
+    const engineOrders = (await $.env.get('WT_SESSION')) !== undefined || (await $.env.get('TERM_PROGRAM')) === 'vscode'
+    await update($, terminal, () => (engineOrders ? 'logical' : 'visual'))
     return next(e)
   })
 
@@ -57,7 +63,8 @@ export const register: Register = on => {
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
     const el = $.ui.resolve(e)
-    const k = kit(el, e)
+    const order = await read($, terminal)
+    const k = kit(el, e, { terminal: order })
     const d = await read($, demo)
     // The theme setting is the terminal's; the desktop follows the system's colour scheme.
     const scheme = e.surface === 'terminal' ? schemeOf((await $.config.list()).find(r => r.key === 'theme')?.value) : 'auto'
@@ -138,8 +145,10 @@ export const register: Register = on => {
     } else if (d.section === 'terminal') {
       const lines = [MIXED, ARABIC, 'סוגריים (בתוך) משפט · 10:00–12:00']
       body = k.col('term', [
-        k.para('term:what', 'כך נשלח לטרמינל: הסדר החזותי מחושב, כי הטרמינל מדפיס תווים לפי הסדר השמור. כאן זה מוצג בדיוק כפי שהטרמינל ידפיס, ובטרמינל זה ייקרא נכון.'),
-        ...lines.map((l, i) => <Text key={`term:${i}`}>{k.isTerminal ? visual(l) : asStored(visual(l))}</Text>),
+        k.isTerminal && order === 'logical'
+          ? k.para('term:what', 'בטרמינל הזה Claude Code מסדר את הטקסט מימין לשמאל בעצמו, אז הוא נשלח בסדר השמור.')
+          : k.para('term:what', 'כך נשלח לטרמינל: הסדר החזותי מחושב, כי הטרמינל מדפיס תווים לפי הסדר השמור. כאן זה מוצג בדיוק כפי שהטרמינל ידפיס, ובטרמינל זה ייקרא נכון.'),
+        ...lines.map((l, i) => <Text key={`term:${i}`}>{k.isTerminal ? k.bidi(l) : asStored(visual(l))}</Text>),
       ])
     } else {
       const ruler = (n: number) => Array.from({ length: n }, (_, i) => String((i + 1) % 10)).join('')

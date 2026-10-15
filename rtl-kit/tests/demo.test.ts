@@ -48,3 +48,44 @@ test('a long paragraph is drawn one right-aligned line at a time, none longer th
   expect(lines.length).toBeGreaterThan(1)
   for (const l of lines) expect(Array.from(l.replace(/[‪-‮]/g, '')).length).toBeLessThanOrEqual(54)
 })
+
+// Claude Code reorders right-to-left text itself where WT_SESSION is set or TERM_PROGRAM is vscode,
+// so the gallery hands the terminal the stored order there, and the visual order everywhere else.
+const STORED = 'לבקש מ-Claude: 3 בקשות, 10:00–12:00'
+const VISUAL = '10:00–12:00 ,תושקב Claude: 3-מ שקבל'
+
+async function start($: any, on: any, env: Record<string, string>) {
+  mock.clock(on)
+  mock.env(on, env)
+  stub(on)
+  on('command.register', () => ({ value: undefined }))
+  on('session.start', (_$: any, e: any) => ({ cwd: e.cwd }))
+  await $.session.start({ cwd: '/tmp', surface: 'terminal', isInteractive: true })
+  return $.ui.mount({ ...PANE, surface: 'terminal' })
+}
+
+test("in VS Code's terminal the gallery sends the stored order, which Claude Code reorders", async ($, on) => {
+  const ui = await start($, on, { TERM_PROGRAM: 'vscode' })
+  const shown = await texts(ui)
+  expect(shown).toContain(STORED)
+  expect(shown).not.toContain(VISUAL)
+  await ui.press({ key: 'tabs:terminal' })
+  expect(await texts(ui)).toContain(STORED)
+  await ui.unmount()
+})
+
+test('in Windows Terminal the gallery sends the stored order too', async ($, on) => {
+  const ui = await start($, on, { WT_SESSION: '0b2c1f6e-1a2b-4c3d-9e8f-000000000000' })
+  expect(await texts(ui)).toContain(STORED)
+  await ui.unmount()
+})
+
+test('on a terminal that prints stored order (TERM_PROGRAM unset) the gallery sends the visual order', async ($, on) => {
+  const ui = await start($, on, {})
+  const shown = await texts(ui)
+  expect(shown).toContain(VISUAL)
+  expect(shown).not.toContain(STORED)
+  await ui.press({ key: 'tabs:terminal' })
+  expect(await texts(ui)).toContain(VISUAL)
+  await ui.unmount()
+})
