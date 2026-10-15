@@ -2,7 +2,7 @@
 
 Right-to-left for Claude Code mods. One file you copy into a mod, so Hebrew and Arabic read right in a pane, a band or a status line.
 
-A mod draws with Claude Code's own elements, and none of them takes a text direction. On the desktop app every element is laid out left to right, so a line that mixes Hebrew with English or numbers comes out scrambled, a long line wraps starting at the left, and `Markdown` is both. The terminal does no bidi at all and prints Hebrew reversed. The kit fixes each of these:
+A mod draws with Claude Code's own elements. On the desktop app every element is laid out left to right, so a line that mixes Hebrew with English or numbers comes out scrambled, a long line wraps starting at the left, and `Markdown` is both. On the macOS terminals Claude Code prints Hebrew in stored order, so it reads reversed. The kit fixes each of these:
 
 - **Order:** every string goes out wrapped in a right-to-left embedding, so `לבקש מ-Claude: 3 בקשות, 10:00–12:00` reads right, in text and in button labels.
 - **Alignment:** long text is wrapped by the kit, one line at a time, each aligned right.
@@ -10,7 +10,7 @@ A mod draws with Claude Code's own elements, and none of them takes a text direc
 - **Markdown:** `k.md()` draws headings, paragraphs, nested lists, quotes and tables with the pieces above.
 - **Design:** cards with hover, tabs, chips, stats, one primary button per screen, and colours from the app's theme keys, so light and dark both work.
 - **SVG:** a header with chips and a day timeline (lanes against hours, right to left), drawn where the surface has `Svg`.
-- **Terminal:** the visual order is computed (Latin words and numbers stay whole, brackets mirror), so Hebrew reads right there too.
+- **Terminal:** the visual order is computed (Latin words and numbers stay whole, brackets mirror), so Hebrew reads right there too. Where Claude Code already reorders (VS Code's terminal, Windows Terminal, conhost), pass `{ terminal: 'logical' }`, or it is reversed twice.
 
 ## Use it
 
@@ -52,6 +52,14 @@ From `claude plugin validate`:
 - **hooks:** `session.start`, `command.run{command=rtl-gallery}`, `ui.render{component=Pane, requestId=rtl-kit}`
 - **calls:** `$.command.register`, `$.config.list`, `$.state.get`, `$.state.set`, `$.ui.open`, `$.ui.resolve`
 
+## Still needed? (Claude Code 2.1.300)
+
+Claude Code 2.1.300 gave `Text` a `dir` prop: `dir="rtl"` sets the base direction, and where Claude Code orders the letters itself (VS Code's terminal, Windows) the rows also sit flush right. It does not replace the kit yet:
+
+- **Desktop:** the app bundles its own Claude Code, and on 2026-10-15 that was 2.1.295, which refuses a whole drawing that names `dir`. The kit is the desktop's answer until the app moves; then `dir` on the desktop gets measured.
+- **macOS terminals:** `dir` changes nothing there (Claude Code leaves the order to the terminal), so the kit's visual order is still what makes Hebrew read right.
+- **VS Code's terminal and Windows:** Claude Code reorders, so use `{ terminal: 'logical' }` there, and `dir="rtl"` on a Text once every engine you target has it.
+
 ## Limits
 
 - Wrapping is by character count, and fonts are proportional: a line can still wrap in the app, and that one wrapped line starts at the left. The default width (90% of the pane's columns) kept every line whole on the desktop; `charsPerColumn` changes it.
@@ -62,4 +70,4 @@ From `claude plugin validate`:
 
 Looked at in the desktop app's Code tab, every gallery tab. The terminal path is covered by the tests (both surfaces) and its reordering by expected strings; VS Code and the phone use the desktop's path and have not been looked at yet. In `claude -p` and the SDK its hooks run and nothing draws.
 
-Tested on Claude Code 2.1.289.
+Tested on Claude Code 2.1.289; tests re-run on 2.1.295 and 2.1.300, and the terminal path read on 2.1.300 (2026-10-15).

@@ -1,6 +1,6 @@
 {
   "name": "rtl-kit",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Right-to-left for Claude Code mods: one file to copy into a mod that orders Hebrew and Arabic right on every surface, aligns wrapped text right, draws markdown, cards, tabs, tables and SVG headers, and reorders text for the terminal",
   "author": {
     "name": "Bar Moshe"

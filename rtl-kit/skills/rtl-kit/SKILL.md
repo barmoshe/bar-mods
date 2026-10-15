@@ -12,7 +12,8 @@ text direction. Measured on the desktop app (Claude Code 2.1.288–2.1.289, 2026
   scrambled, in a Text and in a Button label;
 - a line that wraps starts at the left;
 - `Markdown` is scrambled and left-aligned;
-- the terminal does no bidi at all: Hebrew is printed reversed.
+- on the macOS terminals Claude Code prints Hebrew in stored order, so it reads reversed. (On
+  Windows Terminal, conhost and VS Code's terminal Claude Code reorders it itself, since 2.1.74.)
 
 The kit fixes each of these, and adds a small design language so a pane looks current.
 
@@ -56,8 +57,13 @@ The kit fixes each of these, and adds a small design language so a pane looks cu
 - **SVG only where the surface draws it:** `k.svg(key, svgHeader({...}), alt)` returns nothing on the
   terminal. Everything a person types goes through `escapeXml` (the builders do it).
 - **Never name a variable `h` in a `.tsx` file**: JSX compiles to the global `h()`.
-- **Terminal:** `bidi` prints the visual order there. For a terminal that does its own bidi, pass
-  `kit(el, e, { terminal: 'logical' })`.
+- **Terminal:** `bidi` prints the visual order there. Where Claude Code or the terminal already
+  reorders (VS Code's terminal, Windows), pass `kit(el, e, { terminal: 'logical' })`, or the text is
+  reversed twice. Read it in `session.start`: `await $.env.get('TERM_PROGRAM') === 'vscode'`, keep the
+  answer in `$.state`, and pass it to `kit()` when drawing.
+- **`Text dir` (Claude Code 2.1.300):** sets a Text's base direction and, where the engine reorders,
+  flushes it right. Not a replacement yet: the desktop app's bundled engine (2.1.295 on 2026-10-15)
+  refuses the whole tree over it. Re-measure the desktop when its engine reaches 2.1.300.
 
 ## The API
 

@@ -1,4 +1,4 @@
-// rtl-kit 0.1.1: right-to-left text and a small design language for Claude Code mods.
+// rtl-kit 0.1.2: right-to-left text and a small design language for Claude Code mods.
 // https://github.com/barmoshe/bar-mods/tree/main/rtl-kit
 //
 // Copy this one file into your mod's hooks/ folder and import from './rtl'. It imports nothing at
@@ -13,8 +13,11 @@
 // - a line that wraps still starts at the left, so long text is wrapped here, one Text per line,
 //   each aligned right;
 // - Markdown is scrambled and left-aligned, so md() renders markdown with these builders instead;
-// - the terminal does no bidi at all: Hebrew comes out reversed, so the terminal gets the visual
-//   order computed here.
+// - on the macOS terminals Claude Code prints Hebrew in stored order, so it reads reversed, and the
+//   terminal gets the visual order computed here. Claude Code reorders it itself on Windows
+//   Terminal, conhost and VS Code's terminal (since 2.1.74): pass { terminal: 'logical' } there.
+// - Text's `dir` (Claude Code 2.1.300) does not replace this yet: an engine older than 2.1.300 (the
+//   desktop app's, on 2026-10-15) refuses the whole tree over it.
 //
 // Never name a variable `h` in a .tsx file: JSX compiles to the global h().
 
