@@ -1,9 +1,9 @@
 import { expect, test } from 'claude-code/testing'
 
-import { addItem, count, findNow, parse, resolve, setItem, summary, upNext, waiting } from '../hooks/lib/grammar'
+import { addItem, count, findNow, gatesAhead, gateTiers, parse, position, resolve, setItem, summary, upNext, waiting } from '../hooks/lib/grammar'
 import { visual } from '../hooks/lib/bidi'
 import { barRuns, runsText } from '../hooks/lib/term'
-import { pressSvg } from '../hooks/lib/draw'
+import { briefSvg } from '../hooks/lib/draw'
 import { PLAN_3_1 } from './fixture'
 
 const lines = (s: string) => s.split('\n')
@@ -28,8 +28,23 @@ test('counts each step as one, a step with sub-steps by its share, gates never',
   if (!plan) throw new Error('no plan')
   expect(count(plan)).toEqual({ pct: 23, sum: 3.5, done: 3, total: 15 })
   expect(findNow(plan)?.item.id).toBe('2d')
-  expect(waiting(plan).map(i => i.title)).toEqual(['terraform apply', 'The merge', 'staging-days.py --apply, the epoch'])
+  // the gates are marked [?] but cannot happen before the PR: ahead, not waiting
+  expect(waiting(plan)).toEqual([])
+  expect(gatesAhead(plan).map(i => i.title)).toEqual(['terraform apply', 'The merge', 'staging-days.py --apply, the epoch'])
+  expect(position(plan)).toEqual({ at: 4, of: 15 })
   expect(upNext(plan, 2).map(i => i.id)).toEqual(['3', 'S'])
+})
+
+test('a gate is due once every step before it is done, and only then waits on you', () => {
+  const before = PLAN_3_1.replace(/^- \[[ ~]\] /gm, '- [x] ').replace(/^(\s+)- \[[ ~]\] /gm, '$1- [x] ')
+  const plan = parse(before)
+  if (!plan) throw new Error('no plan')
+  expect(gateTiers(plan).map(g => g.isDue)).toEqual([true, true, true])
+  expect(waiting(plan).map(i => i.title)).toEqual(['terraform apply', 'The merge', 'staging-days.py --apply, the epoch'])
+  // a decision marked [?] on a step always waits on you
+  const asked = parse(PLAN_3_1.replace('- [ ] 4 · The engine', '- [?] 4 · The engine'))
+  if (!asked) throw new Error('no plan')
+  expect(waiting(asked).map(i => i.id)).toEqual(['4'])
 })
 
 test('a step in progress with no sub-steps counts nothing until done; dropped steps leave the count', () => {
@@ -118,7 +133,8 @@ test('the agent\'s read is compact and names now and what waits', () => {
   const s = summary(plan, 'progress-3-1.md')
   expect(s.split('\n')[0]).toBe('Version 3.1 · trainer studio: 23%, 3 of 15 steps done (progress-3-1.md).')
   expect(s).toContain('Now: 2d · The editor\'s draft and the save\'s list (in step 2 · Exceptions and "שמור").')
-  expect(s).toContain('Waits on the person: gate · terraform apply; gate · The merge;')
+  expect(s).not.toContain('Waits on the person now')
+  expect(s).toContain('Gates ahead, not yet due: terraform apply; The merge; staging-days.py --apply, the epoch.')
 })
 
 test('the terminal gets Hebrew in visual order, Latin left alone', () => {
@@ -131,19 +147,22 @@ test('the terminal bar: ink, dots at the front with the now mark, blueprint ahea
   const plan = parse(PLAN_3_1)
   if (!plan) throw new Error('no plan')
   const runs = barRuns(plan, 40)
-  expect(runsText(runs)).toBe('██████⣿⣀▏╶╴╶╴╶╴╶╴╶╴╶╴╶╴╶╴╶╴╶╴╶╴ ◆◆◆')
+  // the gates are ahead, so outlines
+  expect(runsText(runs)).toBe('██████⣿⣀▏╶╴╶╴╶╴╶╴╶╴╶╴╶╴╶╴╶╴╶╴╶╴ ◇◇◇')
   expect(runs.find(r => r.tone === 'now')?.text).toBe('▏')
 })
 
-test('the press line carries its fonts, a hover title per step, and the counting rule', () => {
+test('the brief\'s masthead says where the build is, carries its fonts, a hover title per step and the rule', () => {
   const plan = parse(PLAN_3_1)
   if (!plan) throw new Error('no plan')
-  const svg = pressSvg(plan, { width: 560, fileName: 'progress-3-1.md' })
+  const svg = briefSvg(plan, { width: 300 })
   expect(svg.length < 131072).toBe(true)
   expect(svg).toContain("font-family:'pp-heebo'")
+  expect(svg).toContain('>Step 4<tspan')
+  expect(svg).toContain('>of 15</tspan>')
+  expect(svg).toContain('>23%<')
+  expect(svg).toContain('>VERSION 3.1 · TRAINER STUDIO<')
   expect(svg).toContain('<title>2 · Exceptions and &quot;שמור&quot; · in progress · 3 of 6 sub-steps done</title>')
+  expect(svg).toContain('<title>Gate · The merge · ahead · Bar&#39;s word</title>'.replace('&#39;', "'"))
   expect(svg).toContain('Each step weighs one.')
-  expect(svg).toContain('>NOW · 2d<')
-  expect(svg).toContain('>3 DONE<')
-  expect(svg).toContain('>11 AHEAD<')
 })

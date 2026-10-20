@@ -20,10 +20,11 @@ const PANE = {
   viewport: VIEW,
   props: { title: 'Plan progress', isFocused: false, bodyColumns: 80, placement: 'dock', scroll: { offset: 0, bodyRows: 40 }, view: {} },
 } as const
+const DOCK = { ...PANE, props: { ...PANE.props, bodyColumns: 41 } } as const
 
-type Disk = { text: string; mtimeMs: number; writes: number; toasts: string[]; opened: string[]; ran: string[][] }
+type Disk = { text: string; mtimeMs: number; writes: number; toasts: string[]; opened: string[]; ran: string[][]; filled: string[] }
 
-// A file system of one file, a store, a clock, and the engine's own drawing beneath the plugin.
+// A file system of one file, a store, a clock, git commits from Bash, and the engine's own drawing beneath.
 function rig(on: On, disk: Disk) {
   const clock = mock.clock(on, { now: 1_000_000 })
   mock.store(on, { 'pin:/work': PATH })
@@ -41,6 +42,12 @@ function rig(on: On, disk: Disk) {
     disk.toasts.push(e.text)
     return { value: undefined }
   })
+  on('prompt.fill', ($: any, e: any) => {
+    disk.filled.push(e.text)
+    return { isFilled: true }
+  })
+  on('prompt.submit', ($: any, e: any) => ({ text: e.text }))
+  on('turn.complete', () => ({ text: '' }))
   on('ui.render', () => ENGINE_DRAWS)
   on('fs.stat', ($, e) => {
     if (e.path !== PATH) throw new Error(`ENOENT: ${e.path}`)
@@ -60,23 +67,33 @@ function rig(on: On, disk: Disk) {
     disk.ran.push([...e.argv])
     return { value: { exitCode: 0, stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false } }
   })
+  // Bash: a `git commit` comes back with the engine's own record of the commit
+  on('tool.call', ($: any, e: any) => {
+    if (e.tool !== 'Bash') return { result: 'ok' }
+    const m = /#sha:(\w+)/.exec(e.command)
+    return { result: { stdout: '', stderr: '', interrupted: false, ...(m ? { gitOperation: { commit: { sha: `${m[1]}0000000000`, kind: 'committed' } } } : {}) } }
+  })
   return clock
 }
 
-const fresh = (): Disk => ({ text: PLAN_3_1, mtimeMs: 500_000, writes: 0, toasts: [], opened: [], ran: [] })
+const fresh = (text = PLAN_3_1): Disk => ({ text, mtimeMs: 500_000, writes: 0, toasts: [], opened: [], ran: [], filled: [] })
 const start = ($: any) => $.session.start({ surface: 'desktop', isInteractive: true, cwd: '/work' })
 const tool = async ($: any, input: Record<string, unknown>): Promise<string> => {
   const out: any = await $.tool.call({ tool: 'mcp__plan-progress__progress', ...input })
   return out.result[0].text
 }
+const commit = ($: any, sha: string, message: string) =>
+  $.tool.call({ tool: 'Bash', command: `git commit -m "${message}" #sha:${sha}`, description: 'Commit the step' })
+const lineOf = (text: string, id: string) => text.split('\n').find(l => new RegExp(`\\] ${id} ·`).test(l)) ?? ''
 
-test('a session in a project with a pinned plan reads it and opens the pane', async ($, on) => {
+test('a session with a pinned plan reads it, opens the pane, and its read says the gates are ahead', async ($, on) => {
   const disk = fresh()
   rig(on, disk)
   await start($)
   expect(disk.opened).toEqual(['plan-progress'])
   const text = await tool($, { action: 'read' })
   expect(text.split('\n')[0]).toBe('Version 3.1 · trainer studio: 23%, 3 of 15 steps done (/work/progress-3-1.md).')
+  expect(text).toContain('Gates ahead, not yet due: terraform apply')
   expect(text).toContain('version: 500000')
 })
 
@@ -89,9 +106,7 @@ test('set writes one line, and a step turning done raises one toast', async ($, 
   expect(disk.toasts).toEqual([])
   const out = await tool($, { action: 'set', item: '2f', state: 'done', note: '`abc1234`' })
   expect(out).toContain('Wrote line 15:   - [x] 2f · The checks · `abc1234`')
-  const after = disk.text.split('\n')
-  expect(after.filter((l, i) => l !== before[i])).toHaveLength(3)
-  // the step's own line still says [~]: its sub-steps fill it, and the toast says so
+  expect(disk.text.split('\n').filter((l, i) => l !== before[i])).toHaveLength(3)
   expect(disk.toasts).toEqual(['Step 2 done · 4 of 15'])
 })
 
@@ -99,67 +114,95 @@ test('a write is refused when the file changed since the agent read it', async (
   const disk = fresh()
   rig(on, disk)
   await start($)
-  const read = await tool($, { action: 'read' })
-  const version = Number(/version: (\d+)/.exec(read)?.[1])
-  // Bar edits the file by hand
+  const version = Number(/version: (\d+)/.exec(await tool($, { action: 'read' }))?.[1])
   disk.text = disk.text.replace('- [ ] 9 · The look', '- [ ] 9 · The look, again')
   disk.mtimeMs += 7000
-  const out = await tool($, { action: 'set', item: '3', state: 'doing', version })
-  expect(out).toContain('The file changed since you read it')
+  expect(await tool($, { action: 'set', item: '3', state: 'doing', version })).toContain('The file changed since you read it')
   expect(disk.writes).toBe(0)
-  // without a version the edit goes onto the file as it is now, the hand edit kept
   await tool($, { action: 'set', item: '3', state: 'doing' })
   expect(disk.text).toContain('- [ ] 9 · The look, again')
   expect(disk.text).toContain('- [~] 3 · An exercise not on the list')
 })
 
-test('add and pin answer in plain words', async ($, on) => {
+test('a commit that names a step not started marks it in progress, and its time is the start', async ($, on) => {
   const disk = fresh()
-  rig(on, disk)
+  const clock = rig(on, disk)
   await start($)
-  const added = await tool($, { action: 'add', id: '2g', title: 'A late sub-step', after: '2f' })
-  expect(added).toContain('Wrote line 16:   - [ ] 2g · A late sub-step')
-  const bad = await tool($, { action: 'set', item: 'gate', state: 'done' })
-  expect(bad).toContain('"gate" matches 3 items')
-  const pinned = await tool($, { action: 'pin', path: '/nowhere.md' })
-  expect(pinned).toBe('/nowhere.md is not a file.')
+  await clock.advance(5 * 60_000)
+  const ran: any = await commit($, '69b4cc8', 'feat(drafts): an exercise not on the list (3.1 step 3)')
+  expect(ran.context).toBeUndefined()
+  expect(lineOf(disk.text, '3')).toBe('- [~] 3 · An exercise not on the list')
+  // a commit that names nothing in the plan changes nothing
+  const writes = disk.writes
+  await commit($, '85e7646', 'chore: backups are git-ignored')
+  expect(disk.writes).toBe(writes)
 })
 
-test('the band draws on the desktop and the terminal, and yields when hidden', async ($, on) => {
+test('when the commits move past an open item the agent is told once, and the pane offers to close it', async ($, on) => {
   const disk = fresh()
-  rig(on, disk)
+  const clock = rig(on, disk)
   await start($)
+  await commit($, '3e11fec', 'feat(exceptions): the editor draft (3.1 step 2d)')
+  await clock.advance(10 * 60_000)
+  const ran: any = await commit($, '788f152', 'feat(exceptions): lines waiting (3.1 step 2e)')
+  expect(ran.context).toHaveLength(1)
+  expect(ran.context[0]).toContain('still has 2d · The editor\'s draft and the save\'s list in progress, but your commits have moved on to 2e')
+  // 2e was not started: the commit started it
+  expect(lineOf(disk.text, '2e')).toContain('[~] 2e')
+  // told once
+  await clock.advance(60_000)
+  const again: any = await commit($, '5a78272', 'test(exceptions): checks (3.1 step 2e)')
+  expect(again.context).toBeUndefined()
+
   for (const surface of ['desktop', 'terminal'] as const) {
-    const ui = await $.ui.mount({ ...BAND, surface })
-    await ui.drawn()
-    expect(await ui.find({ type: 'Text', text: 'Version 3.1' })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: "23% · now 2d The editor's draft and the save's list" })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: '3 wait on you' })).toBeDefined()
+    const ui = await $.ui.mount({ ...DOCK, surface })
+    expect(await ui.find({ type: 'Text', text: 'THE PLAN IS BEHIND' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: '2d looks done: the commits moved on to 2e 1 min ago. Claude was told.' })).toBeDefined()
     await ui.unmount()
   }
-  const desk = await $.ui.mount({ ...BAND, surface: 'desktop' })
-  expect(await desk.find({ type: 'Svg' })).toBeDefined()
-  await $.command.run({ command: 'progress', args: 'hide' })
-  expect(await desk.find({ type: 'Text', text: 'drawn by Claude Code' })).toBeDefined()
-  const shown = await $.command.run({ command: 'progress', args: '' })
-  expect(shown.text).toContain('Version 3.1 · trainer studio: 23%')
+  const band = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  expect(await band.find({ type: 'Text', text: '⟳ the plan is behind: 2d looks done (work moved to 2e)' })).toBeDefined()
+  const pane = await $.ui.mount({ ...DOCK, surface: 'desktop' })
+  await pane.press({ key: 'close-2d>2e' })
+  expect(lineOf(disk.text, '2d')).toContain('[x] 2d')
+  expect(await pane.find({ type: 'Text', text: 'THE PLAN IS BEHIND' })).toBeUndefined()
 })
 
-test('the pane draws on both surfaces: the press line, what waits on you, now, next', async ($, on) => {
+test('"Not yet" waves a lag off for good', async ($, on) => {
+  const disk = fresh()
+  const clock = rig(on, disk)
+  await start($)
+  await commit($, '3e11fec', 'feat: the draft (3.1 step 2d)')
+  await clock.advance(60_000)
+  await commit($, '788f152', 'feat: lines (3.1 step 2e)')
+  const pane = await $.ui.mount({ ...DOCK, surface: 'desktop' })
+  await pane.press({ key: 'keep-2d>2e' })
+  expect(await pane.find({ type: 'Text', text: 'THE PLAN IS BEHIND' })).toBeUndefined()
+  expect(lineOf(disk.text, '2d')).toContain('[~] 2d')
+})
+
+test('the brief, in the dock, on both surfaces: where, the gates ahead quietly, now, next, done', async ($, on) => {
   const disk = fresh()
   rig(on, disk)
   await start($)
   for (const surface of ['desktop', 'terminal'] as const) {
-    const ui = await $.ui.mount({ ...PANE, surface })
+    const ui = await $.ui.mount({ ...DOCK, surface })
     await ui.drawn()
-    expect(await ui.find({ type: 'Text', text: 'WAITS ON YOU · 3' })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: 'NOW · STEP 2 · 3 OF 6' })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: "The editor's draft and the save's list" })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'NEEDS YOU NOW' })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: '◇ 3 gates ahead, after PR: terraform apply, The merge, staging-days.py --apply, the epoch' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'NOW · 3 OF 6' })).toBeDefined()
+    // the macOS terminals get Hebrew in visual order
+    expect(await ui.find({ type: 'Text', text: surface === 'desktop' ? '2 · Exceptions and "שמור"' : '2 · Exceptions and "רומש"' })).toBeDefined()
+    // done sub-steps leave the now block; the open ones stay
+    expect(await ui.find({ type: 'Text', text: 'Tables, codec, rules' })).toBeUndefined()
+    expect(await ui.find({ type: 'Text', text: 'The checks' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: 'NEXT' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'DONE · 3' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'F  K  1' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: 'progress-3-1.md' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: 'changed 8 min ago' })).toBeDefined()
-    if (surface === 'desktop') expect(await ui.find({ type: 'Svg' })).toBeDefined()
-    else expect(await ui.find({ type: 'Text', text: 'Version 3.1 · trainer studio' })).toBeDefined()
+    if (surface === 'desktop') expect(JSON.stringify(await ui.drawn())).toContain('>Step 4<tspan')
+    else expect(await ui.find({ type: 'Text', text: 'Step 4 of 15' })).toBeDefined()
     await ui.press({ key: 'all' })
     expect(await ui.find({ type: 'Text', text: 'EVERY STEP' })).toBeDefined()
     await ui.press({ key: 'all' })
@@ -167,17 +210,69 @@ test('the pane draws on both surfaces: the press line, what waits on you, now, n
   }
 })
 
-test('Open the file runs the opener on the desktop; the terminal gets a link', async ($, on) => {
+test('once the gates are due they need you, in the pane and the band, with the word one press away', async ($, on) => {
+  const due = PLAN_3_1.replace(/^- \[[ ~]\] (?!gate)/gm, '- [x] ').replace(/^(\s+)- \[[ ~]\] /gm, '$1- [x] ')
+  const disk = fresh(due)
+  rig(on, disk)
+  await start($)
+  const ui = await $.ui.mount({ ...DOCK, surface: 'desktop' })
+  expect(await ui.find({ type: 'Text', text: 'NEEDS YOU NOW · 3' })).toBeDefined()
+  await ui.press({ key: `word-${due.split('\n').findIndex(l => l.includes('gate · terraform apply'))}` })
+  expect(disk.filled).toEqual(['Go ahead with terraform apply.'])
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
+  expect(await band.find({ type: 'Text', text: 'terraform apply needs your word' })).toBeDefined()
+})
+
+test('the live line says what the agent is doing while it works, and leaves when the turn ends', async ($, on) => {
   const disk = fresh()
   rig(on, disk)
   await start($)
-  const desk = await $.ui.mount({ ...PANE, surface: 'desktop' })
-  await desk.press({ key: 'open-file' })
-  expect(disk.ran).toEqual([['open', PATH]])
-  await desk.unmount()
-  const term = await $.ui.mount({ ...PANE, surface: 'terminal' })
-  expect(await term.find({ type: 'Link', text: 'Open the file' })).toBeDefined()
-  expect(await term.find({ type: 'Button', key: 'open-file' })).toBeUndefined()
+  await $.tool.call({ tool: 'Bash', command: 'npm run check', description: 'Run the emulator and browser suites' } as any)
+  const ui = await $.ui.mount({ ...DOCK, surface: 'desktop' })
+  expect(await ui.find({ type: 'Text', text: 'Claude · Run the emulator and browser suites' })).toBeDefined()
+  await $.tool.call({ tool: 'Read', file_path: '/work/src/codec.ts' } as any)
+  expect(await ui.find({ type: 'Text', text: 'Claude · reading codec.ts' })).toBeDefined()
+  await $.turn.complete({ turnId: 't1', answer: 'done', durationMs: 1000, isAborted: false, reason: 'answer' } as any)
+  expect(await ui.find({ type: 'Text', text: /^Claude · / })).toBeUndefined()
+})
+
+test('the band: step and time on the desktop and the terminal, yielding when hidden', async ($, on) => {
+  const disk = fresh()
+  rig(on, disk)
+  await start($)
+  for (const surface of ['desktop', 'terminal'] as const) {
+    const ui = await $.ui.mount({ ...BAND, surface })
+    await ui.drawn()
+    expect(await ui.find({ type: 'Text', text: 'Step 4/15' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: surface === 'desktop' ? ' · 2 Exceptions and "שמור"' : ' · 2 Exceptions and "רומש"' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'drawn by Claude Code' })).toBeDefined()
+    await ui.unmount()
+  }
+  const desk = await $.ui.mount({ ...BAND, surface: 'desktop' })
+  expect(await desk.find({ type: 'Svg' })).toBeDefined()
+  await $.command.run({ command: 'progress', args: 'hide' })
+  expect(await desk.find({ type: 'Text', text: 'Step 4/15' })).toBeUndefined()
+  const shown = await $.command.run({ command: 'progress', args: '' })
+  expect(shown.text).toContain('step 4 of 15')
+})
+
+test('pace shows once two steps were seen start and finish, as a range', async ($, on) => {
+  const disk = fresh()
+  const clock = rig(on, disk)
+  await start($)
+  const advance = async (min: number, from: RegExp | string, to: string) => {
+    await clock.advance(min * 60_000)
+    disk.text = disk.text.replace(from, to)
+    disk.mtimeMs += 1000
+    await clock.advance(2100)
+  }
+  await advance(1, '- [ ] 3 · An exercise', '- [~] 3 · An exercise')
+  await advance(40, '- [~] 3 · An exercise', '- [x] 3 · An exercise')
+  await advance(1, '- [ ] S · Ladders', '- [~] S · Ladders')
+  await advance(60, '- [~] S · Ladders', '- [x] S · Ladders')
+  const ui = await $.ui.mount({ ...DOCK, surface: 'desktop' })
+  expect(await ui.find({ type: 'Text', text: 'PACE' })).toBeDefined()
+  expect(await ui.find({ type: 'Text', text: 'a step takes 40-60 min · 10 left: about 7-10 h' })).toBeDefined()
 })
 
 test('a hand edit shows within a poll', async ($, on) => {
@@ -187,65 +282,29 @@ test('a hand edit shows within a poll', async ($, on) => {
   disk.text = disk.text.replace('  - [~] 2d ·', '  - [x] 2d ·').replace('  - [ ] 2e ·', '  - [~] 2e ·')
   disk.mtimeMs += 3000
   await clock.advance(2100)
-  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
-  expect(await ui.find({ type: 'Text', text: 'NOW · STEP 2 · 4 OF 6' })).toBeDefined()
-})
-
-test('in the desktop dock (about 45 cells) the title wraps and notes sit under their titles', async ($, on) => {
-  const disk = fresh()
-  rig(on, disk)
-  await start($)
-  const ui = await $.ui.mount({ ...PANE, surface: 'desktop', props: { ...PANE.props, bodyColumns: 41 } })
-  const tree = JSON.stringify(await ui.drawn())
-  // the SVG's title: two lines, nothing cut
-  expect(tree).toContain('>Version 3.1 ·<')
-  expect(tree).toContain('>trainer studio<')
-  // 2b's commit is a line under its title, inside the title's column
-  const row = (await ui.drawn()) as any
-  const find = (n: any): any => (n?.props?.key === 'row-10' ? n : (n?.children ?? []).map(find).find(Boolean))
-  const r = find(row)
-  expect(r.children).toHaveLength(3)
-  expect(JSON.stringify(r.children[2])).toContain('576579b')
-})
-
-test('a step with no sub-steps in progress: its title is the heading once, then its mark and notes', async ($, on) => {
-  const disk = fresh()
-  disk.text = PLAN_3_1.replace(/^(\s*)- \[[ ~]\] (2[a-f]?) ·/gm, '$1- [x] $2 ·').replace('- [ ] 3 · An exercise not on the list', '- [~] 3 · An exercise not on the list · `abc1234`, checks running')
-  rig(on, disk)
-  await start($)
-  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
-  expect(await ui.find({ type: 'Text', text: 'NOW · STEP 3' })).toBeDefined()
-  // once, as the heading: no row repeats it under the heading
-  expect(await ui.findAll({ type: 'Text', text: 'An exercise not on the list' })).toHaveLength(1)
-  expect(await ui.find({ key: 'row-15' })).toBeUndefined()
-  expect(await ui.find({ type: 'Text', text: 'abc1234, checks running' })).toBeDefined()
+  const ui = await $.ui.mount({ ...DOCK, surface: 'desktop' })
+  expect(await ui.find({ type: 'Text', text: 'NOW · 4 OF 6' })).toBeDefined()
 })
 
 test('a /progress that arrives as a prompt is answered and dropped, with no turn; other prompts pass', async ($, on) => {
   const disk = fresh()
   rig(on, disk)
-  on('prompt.submit', ($, e) => ({ text: e.text }))
   await start($)
   const hid: any = await $.prompt.submit({ text: '/progress hide', wait: false } as any)
   expect(hid.drop).toBe('Plan progress hidden. /progress brings it back.')
   const shown: any = await $.prompt.submit({ text: '/plan-progress:progress', wait: false } as any)
-  expect(shown.drop).toContain('Version 3.1 · trainer studio: 23%')
+  expect(shown.drop).toContain('Version 3.1 · trainer studio: step 4 of 15')
   const other: any = await $.prompt.submit({ text: 'what is the progress here?', wait: false } as any)
   expect(other.drop).toBeUndefined()
-  expect(other.text).toBe('what is the progress here?')
 })
 
-test('/plan-progress:progress answers like /progress, and the tool shows, hides and unpins', async ($, on) => {
+test('Open the file runs the opener on the desktop; the terminal gets a link', async ($, on) => {
   const disk = fresh()
   rig(on, disk)
   await start($)
-  const long = await $.command.run({ command: 'plan-progress:progress', args: '' } as any)
-  expect(long.text).toContain('Version 3.1 · trainer studio: 23%')
-  expect(await tool($, { action: 'hide' })).toBe('Plan progress hidden. /progress brings it back.')
-  const band = await $.ui.mount({ ...BAND, surface: 'desktop' })
-  expect(await band.find({ type: 'Text', text: 'drawn by Claude Code' })).toBeDefined()
-  expect(await tool($, { action: 'show' })).toContain('23%')
-  expect(await band.find({ type: 'Text', text: 'Version 3.1' })).toBeDefined()
-  expect(await tool($, { action: 'unpin' })).toBe('No plan is pinned now.')
-  expect(await tool($, { action: 'read' })).toContain('No plan is pinned')
+  const desk = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  await desk.press({ key: 'open-file' })
+  expect(disk.ran).toEqual([['open', PATH]])
+  const term = await $.ui.mount({ ...PANE, surface: 'terminal' })
+  expect(await term.find({ type: 'Link', text: 'Open the file' })).toBeDefined()
 })

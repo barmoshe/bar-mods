@@ -32,7 +32,7 @@
     },
     {
       "name": "plan-progress",
-      "description": "Where a plan stands, beside the conversation: a band above the prompt and a pane drawn from a plain Markdown block, and a tool so Claude keeps it current one line at a time.",
+      "description": "Where a long build stands, beside the conversation, from a plain Markdown plan that keeps itself current: commits that name a step move it, and when the work moves past an open step it says so.",
       "source": "./plan-progress"
     }
   ]

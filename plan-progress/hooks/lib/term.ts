@@ -3,7 +3,7 @@
 // tone each, which the hooks module turns into Text elements.
 
 import type { Plan } from '../../types'
-import { fillOf, findNow } from './grammar'
+import { fillOf, findNow, gateTiers } from './grammar'
 
 export type Tone = 'ink' | 'dim' | 'blue' | 'now'
 export type Run = { text: string; tone: Tone }
@@ -24,13 +24,16 @@ export function barRuns(plan: Plan, cells: number): Run[] {
   const room = cells - (gates.length ? gates.length + 1 : 0) - 1
   const per = Math.max(1, Math.min(3, Math.floor(room / Math.max(1, work.length))))
   const now = findNow(plan)
+  const dueGates = new Set(gateTiers(plan).filter(g => g.isDue).map(g => g.item))
   const runs: Run[] = []
   let isAfterWork = false
   for (const it of plan.items) {
     if (it.isGate) {
       if (isAfterWork) push(runs, ' ', 'dim')
       isAfterWork = false
-      push(runs, it.state === '?' ? '◆' : it.state === 'x' ? '◆' : it.state === '-' ? '·' : '◇', it.state === 'x' ? 'ink' : it.state === '-' ? 'dim' : 'blue')
+      // filled once due (it waits on you), an outline while ahead
+      const isDue = dueGates.has(it)
+      push(runs, it.state === 'x' || isDue ? '◆' : it.state === '-' ? '·' : '◇', it.state === 'x' ? 'ink' : it.state === '-' ? 'dim' : 'blue')
       continue
     }
     isAfterWork = true

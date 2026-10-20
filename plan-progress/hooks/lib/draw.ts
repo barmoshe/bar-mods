@@ -1,25 +1,24 @@
-// The press line, drawn as SVG for the desktop: ink behind, halftone at the front, blueprint
-// ahead, the gates as diamonds at the end. Pure: a plan and a width in, markup out.
+// The pictures, drawn as SVG for the desktop: the brief's masthead (where the build is, and the
+// strip under it), the band's strip, and the pace. Pure: a plan and a width in, markup out.
 //
-// The story is the Bar Builds mark's, from idea to product: a step not started is a drawing
-// (a blue outline), a step under way is halftone, a step done is solid ink. Orange marks one
-// thing, the item being worked on now. Blue fill means it waits on you.
+// The strip tells the Bar Builds mark's story, from idea to product: a step not started is a
+// drawing (a blue outline), a step under way is halftone, a step done is solid ink. Orange marks
+// one thing, the item being worked on now. A gate is a diamond where it falls: an outline while
+// it is ahead, filled blue once it is due and waits on you.
 
 import type { Item, Plan } from '../../types'
 import { isRtlFirst } from './bidi'
 import { DISPLAY, FONT_FACES, MONO } from './fonts'
-import { COUNT_RULE, count, fillOf, findNow, label, STATE_WORDS, waiting } from './grammar'
+import { COUNT_RULE, count, fillOf, findNow, gateTiers, label, position, STATE_WORDS, waiting } from './grammar'
 
 // Light and dark inks; the SVG picks by the frame's colour scheme.
 const LIGHT = { ink: '#1E1D1B', ink2: '#5E5B55', blue: '#1F5FAE', orange: '#F2621B' }
 const DARK = { ink: '#ECE8DD', ink2: '#B3B0A8', blue: '#6FAEF2', orange: '#F2621B' }
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v))
 const n = (v: number) => (Math.round(v * 10) / 10).toString()
 export const noteText = (s: string) => s.replace(/`([^`]*)`/g, '$1').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
 
-// Rough advance widths, enough to fit a title or centre a label.
 // Words into at most `max` lines of `px`; the last line is cut with an ellipsis if the rest won't fit.
 export function wrapLines(s: string, px: number, size: number, max: number, k = 0.55): string[] {
   const room = Math.max(1, Math.floor(px / (size * k)))
@@ -42,12 +41,6 @@ export function wrapLines(s: string, px: number, size: number, max: number, k = 
   }
   if (line) out.push(Array.from(line).length > room ? `${Array.from(line).slice(0, room - 1).join('')}…` : line)
   return out.slice(0, max)
-}
-
-const fitTo = (s: string, px: number, size: number, k = 0.55) => {
-  const max = Math.max(1, Math.floor(px / (size * k)))
-  const chars = Array.from(s)
-  return chars.length > max ? `${chars.slice(0, Math.max(1, max - 1)).join('')}…` : s
 }
 
 function style(motion: boolean, fonts = true): string {
@@ -80,7 +73,7 @@ function halftone(x: number, y: number, w: number, h: number, f: number, step = 
   for (let cy = y + step / 2; cy < y + h + step; cy += step * 0.866, row++) {
     for (let cx = x + (row % 2 ? step / 2 : 0); cx < x + w + step; cx += step) {
       const t = (cx - x) / w
-      const k = clamp((f + 0.24 - t) / 0.48, 0, 1)
+      const k = Math.max(0, Math.min(1, (f + 0.24 - t) / 0.48))
       const r = step * 0.58 * Math.sqrt(k)
       if (r > 0.3) dots += `<circle cx="${n(cx)}" cy="${n(cy)}" r="${r.toFixed(2)}"/>`
     }
@@ -91,66 +84,64 @@ function halftone(x: number, y: number, w: number, h: number, f: number, step = 
 const diamond = (cx: number, cy: number, r: number, cls: string) =>
   `<polygon points="${n(cx)},${n(cy - r)} ${n(cx + r)},${n(cy)} ${n(cx)},${n(cy + r)} ${n(cx - r)},${n(cy)}" class="${cls}"/>`
 
-function tip(it: Item): string {
+function tip(it: Item, isDue?: boolean): string {
   const kids = it.children.filter(k => k.state !== '-')
   const share = kids.length ? `${kids.filter(k => k.state === 'x').length} of ${kids.length} sub-steps done` : ''
-  const parts = [it.isGate ? `Gate · ${it.title}` : label(it), STATE_WORDS[it.state], share, ...it.notes.map(noteText)]
+  const word = it.isGate ? (it.state === 'x' ? 'done' : isDue ? 'due: waits on you' : 'ahead') : STATE_WORDS[it.state]
+  const parts = [it.isGate ? `Gate · ${it.title}` : label(it), word, share, ...it.notes.map(noteText)]
   return `<title>${esc(parts.filter(Boolean).join(' · '))}</title>`
 }
 
 type Seg = { it: Item; x: number; w: number; cx: number; isGate: boolean }
-type Bar = { svg: string; segs: Seg[]; front: number | null }
+type Strip = { svg: string; segs: Seg[]; front: number | null }
 
-// The bar itself: one segment per step, a diamond per gate.
-function bar(plan: Plan, x0: number, y: number, W: number, h: number, o: { gap: number; gw: number; step: number; tips: boolean; settle?: string }): Bar {
-  const gates = plan.items.filter(i => i.isGate)
+// The strip: one segment per step, a diamond per gate where it falls.
+function strip(plan: Plan, y: number, W: number, h: number, o: { gap: number; gw: number; step: number; tips: boolean; settle?: string }): Strip {
+  const gates = gateTiers(plan)
   const work = plan.items.filter(i => !i.isGate)
-  const lead = gates.length ? 6 : 0
+  const lead = gates.length ? 5 : 0
   // every segment is followed by a gap; the last one's becomes the lead-in to the gates
   const gaps = gates.length ? work.length * o.gap : Math.max(0, work.length - 1) * o.gap
   const sw = Math.max(2, (W - gates.length * o.gw - gaps - lead) / Math.max(1, work.length))
   const now = findNow(plan)
-  let x = x0
+  let x = 0
   let svg = ''
   let front: number | null = null
   const segs: Seg[] = []
   let prevWasWork = false
   for (const it of plan.items) {
-    const t = o.tips ? tip(it) : ''
     if (it.isGate) {
+      const g = gates.find(z => z.item === it)
       const cx = x + (prevWasWork ? lead : 0) + o.gw / 2
       x = cx + o.gw / 2
       prevWasWork = false
-      const cls = it.state === '?' ? 'b' : it.state === 'x' ? 'i' : it.state === '-' ? 'n si2' : 'n sb'
-      svg += `<g>${t}${diamond(cx, y + h / 2, Math.min(h / 2, o.gw / 2) - 1, cls)}</g>`
+      const cls = it.state === 'x' ? 'i' : it.state === '-' ? 'n si2' : g?.isDue ? 'b' : 'n sb'
+      svg += `<g>${o.tips ? tip(it, g?.isDue) : ''}${diamond(cx, y + h / 2, Math.min(h / 2, o.gw / 2) - 1, cls)}</g>`
       segs.push({ it, x: cx - o.gw / 2, w: o.gw, cx, isGate: true })
       continue
     }
     prevWasWork = true
     let g = ''
     const f = fillOf(it)
-    const isFront = now !== null && it === now.step && it.state !== 'x' && f < 1
+    const rect = (cls: string, extra = '') => `<rect x="${n(x + 0.5)}" y="${n(y + 0.5)}" width="${n(sw - 1)}" height="${n(h - 1)}" class="${cls}"${extra}/>`
     if (f === 1) {
-      const cls = o.settle === it.line.toString() ? 'i settle' : 'i'
-      g = `<rect x="${n(x)}" y="${y}" width="${n(sw)}" height="${h}" class="${cls}"/>`
-    } else if (isFront) {
-      const ff = Math.max(f, 0.12)
-      g = halftone(x, y, sw, h, ff, o.step) + `<rect x="${n(x + 0.5)}" y="${y + 0.5}" width="${n(sw - 1)}" height="${h - 1}" class="n si" stroke-width="1"/>`
+      g = `<rect x="${n(x)}" y="${n(y)}" width="${n(sw)}" height="${n(h)}" class="${o.settle === it.line.toString() ? 'i settle' : 'i'}"/>`
+    } else if (now && it === now.step) {
+      const ff = Math.max(f, 0.15)
+      g = halftone(x, y, sw, h, ff, o.step) + rect('n si', ' stroke-width="1"')
       front = x + sw * ff
-    } else if (it.state === '-') {
-      g = `<rect x="${n(x + 0.5)}" y="${y + 0.5}" width="${n(sw - 1)}" height="${h - 1}" class="n si2" stroke-dasharray="2 2" opacity=".5"/>`
-    } else if (it.state === '!') {
-      g = `<rect x="${n(x + 0.5)}" y="${y + 0.5}" width="${n(sw - 1)}" height="${h - 1}" class="n si2"/><path d="M${n(x)} ${y + h} L${n(x + sw)} ${y}" class="si2"/>`
-    } else if (it.state === '?') {
-      g = `<rect x="${n(x + 0.5)}" y="${y + 0.5}" width="${n(sw - 1)}" height="${h - 1}" class="b sb"/>`
     } else if (it.state === '~') {
-      // under way, but not the front of the work: halftone and an ink edge, no orange
-      g = halftone(x, y, sw, h, Math.max(f, 0.12), o.step) + `<rect x="${n(x + 0.5)}" y="${y + 0.5}" width="${n(sw - 1)}" height="${h - 1}" class="n si" stroke-width="1"/>`
+      g = halftone(x, y, sw, h, Math.max(f, 0.12), o.step) + rect('n si', ' stroke-width="1"')
+    } else if (it.state === '-') {
+      g = rect('n si2', ' stroke-dasharray="2 2" opacity=".5"')
+    } else if (it.state === '!') {
+      g = rect('n si2') + `<path d="M${n(x)} ${n(y + h)} L${n(x + sw)} ${n(y)}" class="si2"/>`
+    } else if (it.state === '?') {
+      g = rect('b sb')
     } else {
-      const partial = f > 0 ? halftone(x, y, sw, h, f, o.step) : ''
-      g = partial + `<rect x="${n(x + 0.5)}" y="${y + 0.5}" width="${n(sw - 1)}" height="${h - 1}" class="n sb" stroke-width="1"/>`
+      g = (f > 0 ? halftone(x, y, sw, h, f, o.step) : '') + rect('n sb', ' stroke-width="1"')
     }
-    svg += `<g>${t}${g}</g>`
+    svg += `<g>${o.tips ? tip(it) : ''}${g}</g>`
     segs.push({ it, x, w: sw, cx: x + sw / 2, isGate: false })
     x += sw + o.gap
   }
@@ -164,27 +155,9 @@ function text(x: number, y: number, s: string, cls: string, size: number, anchor
   return `<text x="${n(x)}" y="${n(y)}" class="${cls}" font-size="${size}" text-anchor="${a}"${isRtl ? ' direction="rtl"' : ''}${extra}>${esc(s)}</text>`
 }
 
-// A dimension line with its label in a gap: blueprint's way of saying how much is left.
-function dimension(x1: number, x2: number, y: number, cls: 'si' | 'sb', label: string): string {
-  if (x2 - x1 < 30) return ''
-  const fill = cls === 'si' ? 'i' : 'b'
-  const half = (label.length * 6.1) / 2 + 6
-  const mid = (x1 + x2) / 2
-  const room = x2 - x1 > half * 2 + 12
-  const line = room
-    ? `<path d="M${n(x1)} ${y}H${n(mid - half)}M${n(mid + half)} ${y}H${n(x2)}" class="${cls}"/>`
-    : `<path d="M${n(x1)} ${y}H${n(x2)}" class="${cls}"/>`
-  return (
-    `<g>${line}<path d="M${n(x1)} ${y - 4}V${y + 4}M${n(x2)} ${y - 4}V${y + 4}" class="${cls}"/>` +
-    (room ? `<text x="${n(mid)}" y="${y + 3.4}" text-anchor="middle" class="m ${fill}" font-size="9.5" letter-spacing=".6">${label}</text>` : '') +
-    '</g>'
-  )
-}
-
-export type PressOptions = {
-  // nominal width in CSS pixels; the surface scales the drawing down to fit a narrower slot
+export type BriefOptions = {
+  // nominal width in CSS pixels; the surface scales the drawing to its slot
   width: number
-  fileName: string
   // the line of a step that has just turned done, to settle it in
   settleLine?: number
   // the whole plan has just turned done
@@ -192,88 +165,81 @@ export type PressOptions = {
   motion?: boolean
 }
 
-// The pane's masthead: the file, the title, the percentage, and the press line.
-export function pressSvg(plan: Plan, o: PressOptions): string {
+// The brief's masthead: the plan's name, where the build is ("Step 6 of 15"), and the strip.
+export function briefSvg(plan: Plan, o: BriefOptions): string {
   clipSeq = 0
   const W = Math.round(o.width)
   const c = count(plan)
   const now = findNow(plan)
+  const p = position(plan)
   const motion = o.motion !== false
-  const pctW = 44 * 0.62 * String(c.pct).length + 26
-  // the title takes two lines beside the number before it is cut
-  const lines = wrapLines(plan.title || 'Plan', W - pctW - 16, 19, 2)
-  const extra = Math.max(0, lines.length - 1) * 22
-  const Y = 80 + extra
-  const H = 26
-  const b = bar(plan, 0, Y, W, H, { gap: 3, gw: 15, step: 3.4, tips: true, settle: o.settleLine?.toString() })
   let s = style(motion)
-  s += text(0, 11, o.fileName.toUpperCase(), 'm i2', 10, 'start', ' letter-spacing=".8"')
-  lines.forEach((line, i) => {
-    s += text(0, 37 + i * 22, line, 'd i', 19, 'start', ' letter-spacing="-.4"')
+  const kicker = wrapLines((plan.title || 'Plan').toUpperCase(), W - 50, 10, 2, 0.62)
+  kicker.forEach((line, i) => {
+    s += text(0, 11 + i * 13, line, 'm i2', 10, 'start', ' letter-spacing=".8"')
   })
-  s += `<g><title>${esc(COUNT_RULE)}</title><text x="${W}" y="42" text-anchor="end" class="d i" font-size="44" letter-spacing="-1.5">${c.pct}<tspan font-size="22">%</tspan></text>`
-  s += `<text x="${W}" y="57" text-anchor="end" class="m i2" font-size="9.5" letter-spacing=".8">${c.done} OF ${c.total} STEPS</text></g>`
+  const hy = 11 + (kicker.length - 1) * 13 + 34
+  const head = now
+    ? `<text x="0" y="${hy}" class="d i" font-size="31" letter-spacing="-1">Step ${p.at}<tspan class="i2" font-size="20" dx="6" letter-spacing="-.4">of ${p.of}</tspan></text>`
+    : `<text x="0" y="${hy}" class="d i" font-size="31" letter-spacing="-1">Done<tspan class="i2" font-size="20" dx="6">${c.total} of ${c.total}</tspan></text>`
+  s += head
+  s += `<g><title>${esc(COUNT_RULE)}</title><text x="${W}" y="${hy}" text-anchor="end" class="m i2" font-size="12">${c.pct}%</text></g>`
+  const Y = hy + 12
+  const H = 14
+  const b = strip(plan, Y, W, H, { gap: 2, gw: 14, step: 2.6, tips: true, settle: o.settleLine?.toString() })
   s += `<g${o.isWipe && motion ? ' class="wipe"' : ''}>${b.svg}</g>`
-
-  // the ids under the segments, where they fit
+  // ids under the segments, shrunk to fit, left out under 6.5px
   for (const g of b.segs) {
     if (g.isGate || !g.it.id) continue
-    // a mono cell is 0.6 em: the id shrinks to its segment, and is left out under 6.5px
-    const size = Math.min(9.5, (g.w - 1) / (g.it.id.length * 0.62))
+    const size = Math.min(9, (g.w - 1) / (g.it.id.length * 0.62))
     if (size < 6.5) continue
-    const st = g.it.state
-    const cls = fillOf(g.it) === 1 || st === '~' || (now && g.it === now.step) ? 'i' : st === '-' ? 'i2' : 'b'
+    const isLit = fillOf(g.it) === 1 || g.it.state === '~' || (now && g.it === now.step)
     const bold = now && g.it === now.step ? ' font-weight="700"' : ''
-    s += `<text x="${n(g.cx)}" y="${Y + H + 14}" text-anchor="middle" class="m ${cls}" font-size="${n(size)}"${bold}>${esc(g.it.id)}</text>`
+    s += `<text x="${n(g.cx)}" y="${Y + H + 11}" text-anchor="middle" class="m ${isLit ? 'i' : g.it.state === '-' ? 'i2' : 'b'}" font-size="${n(size)}"${bold}>${esc(g.it.id)}</text>`
   }
-
-  // now: an orange mark at the halftone's front, and what it is
   if (now && b.front !== null) {
-    const fx = b.front
-    const nowLabel = `NOW · ${now.item.id || fitTo(now.item.title, 80, 9.5, 0.6)}`
-    const lx = clamp(fx, nowLabel.length * 3.1 + 2, W - nowLabel.length * 3.1 - 2)
-    s += `<g class="${motion ? 'pulse' : ''}"><path d="M${n(fx)} ${Y - 6}V${Y + H + 2}" class="so" stroke-width="2"/><polygon points="${n(fx - 5)},${Y - 12} ${n(fx + 5)},${Y - 12} ${n(fx)},${Y - 5}" class="o"/></g>`
-    s += `<text x="${n(lx)}" y="${Y - 16}" text-anchor="middle" class="m i" font-size="9.5" letter-spacing=".6">${esc(nowLabel)}</text>`
+    s += `<g class="${motion ? 'pulse' : ''}"><path d="M${n(b.front)} ${Y - 5}V${Y + H + 3}" class="so" stroke-width="2"/></g>`
   } else if (c.pct === 100) {
-    // done: the print's orange, once, at the end of the line
-    const work = b.segs.filter(g => !g.isGate)
-    const last = work[work.length - 1]
-    if (last) s += `<path d="M${n(last.x + last.w)} ${Y - 6}V${Y + H + 2}" class="so" stroke-width="2"/>`
+    const last = b.segs.filter(g => !g.isGate).pop()
+    if (last) s += `<path d="M${n(last.x + last.w)} ${Y - 5}V${Y + H + 3}" class="so" stroke-width="2"/>`
   }
-
-  // dimension lines: what is done, what is ahead, and the gates that are yours
-  const work = b.segs.filter(g => !g.isGate)
-  const last = work[work.length - 1]
-  const DY = Y + H + 31
-  if (last) {
-    const firstOpen = work.find(g => fillOf(g.it) < 1)
-    const edge = b.front ?? (firstOpen ? firstOpen.x : last.x + last.w)
-    if (c.done) s += dimension(0, edge - 3, DY, 'si', `${c.done} DONE`)
-    const ahead = work.filter(g => g.it.state === ' ' && fillOf(g.it) === 0 && g.it !== now?.step).length
-    if (ahead) s += dimension(edge + 3, last.x + last.w, DY, 'sb', `${ahead} AHEAD`)
-  }
-  const gates = b.segs.filter(g => g.isGate && g.it.state === '?')
-  const firstGate = gates[0]
-  const lastGate = gates[gates.length - 1]
-  if (firstGate && lastGate) s += `<text x="${n((firstGate.cx + lastGate.cx) / 2)}" y="${DY + 3.4}" text-anchor="middle" class="m b" font-size="9.5" letter-spacing=".6">YOU</text>`
-
-  const HEIGHT = DY + 10
+  const HEIGHT = Y + H + 15
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${HEIGHT}" viewBox="0 0 ${W} ${HEIGHT}">${s}</svg>`
 }
 
-// The band's slim bar: no text, no motion, no hover.
+// The band's slim strip: no text, no motion.
 export function bandSvg(plan: Plan, width = 120, height = 12): string {
   clipSeq = 0
-  const b = bar(plan, 0, 1, width, height - 2, { gap: 1.5, gw: 8, step: 2, tips: false })
+  const b = strip(plan, 1, width, height - 2, { gap: 1.5, gw: 8, step: 2, tips: false })
   let s = style(false, false) + b.svg
   if (b.front !== null) s += `<path d="M${n(b.front)} 0V${height}" class="so" stroke-width="1.6"/>`
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">${s}</svg>`
+}
+
+// The pace: one ink bar per measured step, as tall as its minutes; the step now as an orange outline.
+export function paceSvg(minutes: { id: string; min: number }[], nowId: string | null): string {
+  const bars = minutes.slice(-8)
+  const max = Math.max(...bars.map(b => b.min), 1)
+  const bw = 12
+  const gap = 4
+  let s = style(false, false)
+  bars.forEach((b, i) => {
+    const h = 3 + (20 * b.min) / max
+    s += `<g><title>${esc(`Step ${b.id}: ${b.min} min`)}</title><rect x="${i * (bw + gap)}" y="${n(23 - h)}" width="${bw}" height="${n(h)}" class="i"/></g>`
+  })
+  let w = bars.length * (bw + gap)
+  if (nowId) {
+    s += `<g><title>${esc(`Step ${nowId}: under way`)}</title><rect x="${w + 0.5}" y="7.5" width="${bw - 1}" height="15" class="n so" stroke-dasharray="2 2"/></g>`
+    w += bw
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="24" viewBox="0 0 ${w} 24">${s}</svg>`
 }
 
 // What the pictures say, for a reader that cannot see them.
 export function altOf(plan: Plan): string {
   const c = count(plan)
   const now = findNow(plan)
+  const p = position(plan)
   const w = waiting(plan).length
-  return `${plan.title || 'Plan'}: ${c.pct}%, ${c.done} of ${c.total} steps done${now ? `, now ${label(now.item)}` : ''}${w ? `, ${w} waiting on you` : ''}.`
+  return `${plan.title || 'Plan'}: ${now ? `step ${p.at} of ${p.of}, ${label(now.item)}` : 'every step done'}; ${c.done} of ${c.total} done (${c.pct}%)${w ? `, ${w} waiting on you` : ''}.`
 }

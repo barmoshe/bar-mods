@@ -120,8 +120,40 @@ export function findNow(plan: Plan): Now | null {
 }
 
 const everyItem = (plan: Plan) => plan.items.flatMap(i => [i, ...i.children])
-export const waiting = (plan: Plan) => everyItem(plan).filter(i => i.state === '?')
 export const blocked = (plan: Plan) => everyItem(plan).filter(i => i.state === '!')
+
+export type Gate = { item: Item; isDue: boolean }
+
+// A gate is due only when every step before it is done; until then it is ahead.
+export function gateTiers(plan: Plan): Gate[] {
+  const out: Gate[] = []
+  let isOpenBefore = false
+  for (const it of plan.items) {
+    if (!it.isGate) {
+      if (it.state !== '-' && fillOf(it) < 1) isOpenBefore = true
+      continue
+    }
+    out.push({ item: it, isDue: !isOpenBefore && it.state !== 'x' && it.state !== '-' })
+  }
+  return out
+}
+
+// What needs the person now: a decision marked [?], and the gates that are due.
+export function waiting(plan: Plan): Item[] {
+  const decisions = everyItem(plan).filter(i => i.state === '?' && !i.isGate)
+  return [...decisions, ...gateTiers(plan).filter(g => g.isDue).map(g => g.item)]
+}
+
+// The gates still ahead, not yet due.
+export const gatesAhead = (plan: Plan) => gateTiers(plan).filter(g => !g.isDue && g.item.state !== 'x' && g.item.state !== '-').map(g => g.item)
+
+// "Step 6 of 15": the step in progress (or the next one) among the steps that count.
+export function position(plan: Plan): { at: number; of: number } {
+  const work = plan.items.filter(i => !i.isGate && i.state !== '-')
+  const now = findNow(plan)
+  const at = now ? work.indexOf(now.step) + 1 : work.length
+  return { at: Math.max(1, at), of: work.length }
+}
 
 // The steps after the current one that are still to do.
 export function upNext(plan: Plan, k: number): Item[] {
@@ -252,7 +284,9 @@ export function summary(plan: Plan, path: string): string {
   const out: string[] = [`${plan.title || 'Plan'}: ${c.pct}%, ${c.done} of ${c.total} steps done (${path}).`]
   if (now) out.push(`Now: ${label(now.item)}${now.item !== now.step ? ` (in step ${label(now.step)})` : ''}.`)
   const w = waiting(plan)
-  if (w.length) out.push(`Waits on the person: ${w.map(label).join('; ')}.`)
+  if (w.length) out.push(`Waits on the person now: ${w.map(label).join('; ')}.`)
+  const ahead = gatesAhead(plan)
+  if (ahead.length) out.push(`Gates ahead, not yet due: ${ahead.map(g => g.title).join('; ')}.`)
   const b = blocked(plan)
   if (b.length) out.push(`Blocked: ${b.map(label).join('; ')}.`)
   out.push('')
