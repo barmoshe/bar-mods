@@ -50,7 +50,7 @@ export const register: Register = on => {
     await update($, live, (): Live => ({ tools: 0, current: null }))
 
     return next(e)
-  })
+  }).catch(($, e, next) => next(e))
 
   on('tool.call', async ($, e, next) => {
     byTool[e.tool] = (byTool[e.tool] ?? 0) + 1
@@ -61,7 +61,7 @@ export const register: Register = on => {
     } finally {
       await update($, live, was => (was ? { ...was, current: null } : was))
     }
-  })
+  }).catch(($, e, next) => next(e))
 
   on('turn.complete', async ($, e, next) => {
     // A subagent's turn ends too; only the main loop's end is "the turn".
@@ -90,12 +90,17 @@ export const register: Register = on => {
     const turn = await read($, last)
     const { Box, Button, Text } = $.ui.resolve(e)
 
+    // The bands beneath (other plugins', then the engine's) draw under this line, never in its place.
     if (e.props.isWorking && now) {
       const doing = now.current ? `, now: ${now.current}` : ''
+      const below = await next(e)
       return (
-        <Box>
-          <Text color="cyan">● working </Text>
-          <Text dimColor>{`${now.tools} tool calls${doing}`}</Text>
+        <Box flexDirection="column">
+          <Box>
+            <Text color="cyan">● working </Text>
+            <Text dimColor>{`${now.tools} tool calls${doing}`}</Text>
+          </Box>
+          {below}
         </Box>
       )
     }
@@ -104,16 +109,20 @@ export const register: Register = on => {
       return next(e)
     }
 
+    const below = await next(e)
     return (
-      <Box gap={1}>
-        <Text dimColor wrap="truncate-end">
-          {summary(turn)}
-        </Text>
-        <Button
-          key="hide"
-          label="Hide"
-          onPress={() => update($, isHidden, () => true)}
-        />
+      <Box flexDirection="column">
+        <Box gap={1}>
+          <Text dimColor wrap="truncate-end">
+            {summary(turn)}
+          </Text>
+          <Button
+            key="hide"
+            label="Hide"
+            onPress={() => update($, isHidden, () => true)}
+          />
+        </Box>
+        {below}
       </Box>
     )
   })

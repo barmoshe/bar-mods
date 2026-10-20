@@ -1,6 +1,6 @@
 {
   "name": "turn-meter",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "A band above the prompt: the tool running now during a turn, and a one-line summary of the last turn after it",
   "author": { "name": "Bar Moshe" },
   "license": "MIT",

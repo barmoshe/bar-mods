@@ -34,6 +34,8 @@ test('the band sums up the last turn by tool', async ($, on) => {
   for (const surface of ['terminal', 'desktop'] as const) {
     const ui = await $.ui.mount({ ...BAND, surface })
     expect(await ui.find({ type: 'Text', text: 'Last turn: 42s, 3 tool calls (Bash 2, Read 1)' })).toBeDefined()
+    // the bands beneath still draw, under this one
+    expect(await ui.find({ type: 'Text', text: 'drawn by Claude Code' })).toBeDefined()
     await ui.unmount()
   }
 })
