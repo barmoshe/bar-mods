@@ -208,6 +208,19 @@ test('in the desktop dock (about 45 cells) the title wraps and notes sit under t
   expect(JSON.stringify(r.children[2])).toContain('576579b')
 })
 
+test('a step with no sub-steps in progress: its title is the heading once, then its mark and notes', async ($, on) => {
+  const disk = fresh()
+  disk.text = PLAN_3_1.replace(/^(\s*)- \[[ ~]\] (2[a-f]?) ·/gm, '$1- [x] $2 ·').replace('- [ ] 3 · An exercise not on the list', '- [~] 3 · An exercise not on the list · `abc1234`, checks running')
+  rig(on, disk)
+  await start($)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
+  expect(await ui.find({ type: 'Text', text: 'NOW · STEP 3' })).toBeDefined()
+  // once, as the heading: no row repeats it under the heading
+  expect(await ui.findAll({ type: 'Text', text: 'An exercise not on the list' })).toHaveLength(1)
+  expect(await ui.find({ key: 'row-15' })).toBeUndefined()
+  expect(await ui.find({ type: 'Text', text: 'abc1234, checks running' })).toBeDefined()
+})
+
 test('a /progress that arrives as a prompt is answered and dropped, with no turn; other prompts pass', async ($, on) => {
   const disk = fresh()
   rig(on, disk)

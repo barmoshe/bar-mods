@@ -353,7 +353,15 @@ function lists(el: Els, plan: Plan, where: Where, width: number, isAll: boolean)
         <Text size="heading" weight="semibold">
           {bidi(s.title, where)}
         </Text>
-        {s.children.length ? s.children.map(k => rowOf(el, k, k === now.item, where, width)) : rowOf(el, s, true, where, width)}
+        {s.children.length
+          ? s.children.map(k => rowOf(el, k, k === now.item, where, width))
+          : s.notes.length > 0 && (
+              // a step with no sub-steps: its title is the heading already, so only the mark and its notes
+              <Box key="now-notes" flexDirection="row" gap={1} flexWrap="wrap">
+                <Text color={COLOR.now}>◉</Text>
+                {noteEls(el, s.notes)}
+              </Box>
+            )}
       </Box>,
     )
   } else {
