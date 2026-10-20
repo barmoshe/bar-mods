@@ -29,6 +29,11 @@
       "name": "rtl-kit",
       "description": "Right-to-left for mods: one file to copy into a mod so Hebrew and Arabic read right, wrap right-aligned, and draw as cards, tabs, tables, markdown and SVG timelines, in the terminal too.",
       "source": "./rtl-kit"
+    },
+    {
+      "name": "plan-progress",
+      "description": "Where a plan stands, beside the conversation: a band above the prompt and a pane drawn from a plain Markdown block, and a tool so Claude keeps it current one line at a time.",
+      "source": "./plan-progress"
     }
   ]
 }
