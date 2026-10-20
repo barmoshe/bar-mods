@@ -284,18 +284,30 @@ function rowOf(el: Els, it: Item, isNow: boolean, where: Where, width: number) {
   const tone = toneOf(it.state, isNow)
   const id = it.isGate ? 'gate' : it.id
   const idCells = Math.max(3, id.length)
+  // Narrow (the desktop's dock is about 45 cells), a row's notes go under its title, not beside it.
+  const isNarrow = width < 72
+  const hasNotes = it.notes.length > 0
   return (
     <Box key={`row-${it.line}`} flexDirection="row" gap={1}>
       <Text color={COLOR[tone]}>{isNow ? '◉' : GLYPH[it.state]}</Text>
       <Box width={idCells} flexShrink={0}>
         <Text mono dimColor={!isNow}>{id}</Text>
       </Box>
-      <Box flexGrow={1} flexShrink={1}>
-        <Text weight={isNow ? 'semibold' : 'regular'} strikethrough={it.state === '-'} dimColor={it.state === '-'} wrap={width < 60 ? 'truncate-end' : 'wrap'}>
+      <Box flexDirection="column" flexGrow={1} flexShrink={1} minWidth={0}>
+        <Text weight={isNow ? 'semibold' : 'regular'} strikethrough={it.state === '-'} dimColor={it.state === '-'} wrap="wrap">
           {bidi(it.title, where)}
         </Text>
+        {hasNotes && isNarrow && (
+          <Box flexDirection="row" gap={1} flexWrap="wrap">
+            {noteEls(el, it.notes)}
+          </Box>
+        )}
       </Box>
-      {it.notes.length > 0 && <Box flexShrink={0} gap={1}>{noteEls(el, it.notes)}</Box>}
+      {hasNotes && !isNarrow && (
+        <Box flexShrink={0} gap={1}>
+          {noteEls(el, it.notes)}
+        </Box>
+      )}
     </Box>
   )
 }
@@ -562,10 +574,17 @@ export const register: Register = on => {
     const plan = s.plan
     const c = count(plan)
     const fileName = s.path.split('/').pop() ?? s.path
+    // the file from the project's folder, and when it changed, each on a line of its own
+    const shownPath = root && s.path.startsWith(`${root}/`) ? s.path.slice(root.length + 1) : s.path
     const meta = (
-      <Text mono size="caption" dimColor wrap="truncate-start">
-        {`${s.path} · ${ago(s.mtimeMs, now)}`}
-      </Text>
+      <Box flexDirection="column">
+        <Text mono size="caption" dimColor wrap="wrap">
+          {shownPath}
+        </Text>
+        <Text size="caption" dimColor>
+          {ago(s.mtimeMs, now)}
+        </Text>
+      </Box>
     )
 
     if (e.surface === 'desktop') {

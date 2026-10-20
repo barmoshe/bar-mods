@@ -156,7 +156,8 @@ test('the pane draws on both surfaces: the press line, what waits on you, now, n
     expect(await ui.find({ type: 'Text', text: 'NOW · STEP 2 · 3 OF 6' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: "The editor's draft and the save's list" })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: 'NEXT' })).toBeDefined()
-    expect(await ui.find({ type: 'Text', text: '/work/progress-3-1.md · changed 8 min ago' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'progress-3-1.md' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: 'changed 8 min ago' })).toBeDefined()
     if (surface === 'desktop') expect(await ui.find({ type: 'Svg' })).toBeDefined()
     else expect(await ui.find({ type: 'Text', text: 'Version 3.1 · trainer studio' })).toBeDefined()
     await ui.press({ key: 'all' })
@@ -188,6 +189,23 @@ test('a hand edit shows within a poll', async ($, on) => {
   await clock.advance(2100)
   const ui = await $.ui.mount({ ...PANE, surface: 'desktop' })
   expect(await ui.find({ type: 'Text', text: 'NOW · STEP 2 · 4 OF 6' })).toBeDefined()
+})
+
+test('in the desktop dock (about 45 cells) the title wraps and notes sit under their titles', async ($, on) => {
+  const disk = fresh()
+  rig(on, disk)
+  await start($)
+  const ui = await $.ui.mount({ ...PANE, surface: 'desktop', props: { ...PANE.props, bodyColumns: 41 } })
+  const tree = JSON.stringify(await ui.drawn())
+  // the SVG's title: two lines, nothing cut
+  expect(tree).toContain('>Version 3.1 ·<')
+  expect(tree).toContain('>trainer studio<')
+  // 2b's commit is a line under its title, inside the title's column
+  const row = (await ui.drawn()) as any
+  const find = (n: any): any => (n?.props?.key === 'row-10' ? n : (n?.children ?? []).map(find).find(Boolean))
+  const r = find(row)
+  expect(r.children).toHaveLength(3)
+  expect(JSON.stringify(r.children[2])).toContain('576579b')
 })
 
 test('a /progress that arrives as a prompt is answered and dropped, with no turn; other prompts pass', async ($, on) => {

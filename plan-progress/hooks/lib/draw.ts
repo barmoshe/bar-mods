@@ -20,6 +20,30 @@ const n = (v: number) => (Math.round(v * 10) / 10).toString()
 export const noteText = (s: string) => s.replace(/`([^`]*)`/g, '$1').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
 
 // Rough advance widths, enough to fit a title or centre a label.
+// Words into at most `max` lines of `px`; the last line is cut with an ellipsis if the rest won't fit.
+export function wrapLines(s: string, px: number, size: number, max: number, k = 0.55): string[] {
+  const room = Math.max(1, Math.floor(px / (size * k)))
+  const out: string[] = []
+  let line = ''
+  const words = s.split(/\s+/).filter(Boolean)
+  for (let i = 0; i < words.length; i++) {
+    const w = words[i] ?? ''
+    const next = line ? `${line} ${w}` : w
+    if (Array.from(next).length <= room || !line) {
+      line = next
+      continue
+    }
+    if (out.length === max - 1) {
+      line = `${line} ${words.slice(i).join(' ')}`
+      break
+    }
+    out.push(line)
+    line = w
+  }
+  if (line) out.push(Array.from(line).length > room ? `${Array.from(line).slice(0, room - 1).join('')}…` : line)
+  return out.slice(0, max)
+}
+
 const fitTo = (s: string, px: number, size: number, k = 0.55) => {
   const max = Math.max(1, Math.floor(px / (size * k)))
   const chars = Array.from(s)
@@ -119,6 +143,9 @@ function bar(plan: Plan, x0: number, y: number, W: number, h: number, o: { gap: 
       g = `<rect x="${n(x + 0.5)}" y="${y + 0.5}" width="${n(sw - 1)}" height="${h - 1}" class="n si2"/><path d="M${n(x)} ${y + h} L${n(x + sw)} ${y}" class="si2"/>`
     } else if (it.state === '?') {
       g = `<rect x="${n(x + 0.5)}" y="${y + 0.5}" width="${n(sw - 1)}" height="${h - 1}" class="b sb"/>`
+    } else if (it.state === '~') {
+      // under way, but not the front of the work: halftone and an ink edge, no orange
+      g = halftone(x, y, sw, h, Math.max(f, 0.12), o.step) + `<rect x="${n(x + 0.5)}" y="${y + 0.5}" width="${n(sw - 1)}" height="${h - 1}" class="n si" stroke-width="1"/>`
     } else {
       const partial = f > 0 ? halftone(x, y, sw, h, f, o.step) : ''
       g = partial + `<rect x="${n(x + 0.5)}" y="${y + 0.5}" width="${n(sw - 1)}" height="${h - 1}" class="n sb" stroke-width="1"/>`
@@ -172,13 +199,18 @@ export function pressSvg(plan: Plan, o: PressOptions): string {
   const c = count(plan)
   const now = findNow(plan)
   const motion = o.motion !== false
-  const Y = 80
+  const pctW = 44 * 0.62 * String(c.pct).length + 26
+  // the title takes two lines beside the number before it is cut
+  const lines = wrapLines(plan.title || 'Plan', W - pctW - 16, 19, 2)
+  const extra = Math.max(0, lines.length - 1) * 22
+  const Y = 80 + extra
   const H = 26
   const b = bar(plan, 0, Y, W, H, { gap: 3, gw: 15, step: 3.4, tips: true, settle: o.settleLine?.toString() })
-  const pctW = 44 * 0.62 * String(c.pct).length + 26
   let s = style(motion)
   s += text(0, 11, o.fileName.toUpperCase(), 'm i2', 10, 'start', ' letter-spacing=".8"')
-  s += text(0, 37, fitTo(plan.title || 'Plan', W - pctW - 16, 19), 'd i', 19, 'start', ' letter-spacing="-.4"')
+  lines.forEach((line, i) => {
+    s += text(0, 37 + i * 22, line, 'd i', 19, 'start', ' letter-spacing="-.4"')
+  })
   s += `<g><title>${esc(COUNT_RULE)}</title><text x="${W}" y="42" text-anchor="end" class="d i" font-size="44" letter-spacing="-1.5">${c.pct}<tspan font-size="22">%</tspan></text>`
   s += `<text x="${W}" y="57" text-anchor="end" class="m i2" font-size="9.5" letter-spacing=".8">${c.done} OF ${c.total} STEPS</text></g>`
   s += `<g${o.isWipe && motion ? ' class="wipe"' : ''}>${b.svg}</g>`
@@ -186,11 +218,13 @@ export function pressSvg(plan: Plan, o: PressOptions): string {
   // the ids under the segments, where they fit
   for (const g of b.segs) {
     if (g.isGate || !g.it.id) continue
-    if (g.w < g.it.id.length * 6.2 + 2) continue
+    // a mono cell is 0.6 em: the id shrinks to its segment, and is left out under 6.5px
+    const size = Math.min(9.5, (g.w - 1) / (g.it.id.length * 0.62))
+    if (size < 6.5) continue
     const st = g.it.state
-    const cls = fillOf(g.it) === 1 || (now && g.it === now.step) ? 'i' : st === '-' ? 'i2' : 'b'
+    const cls = fillOf(g.it) === 1 || st === '~' || (now && g.it === now.step) ? 'i' : st === '-' ? 'i2' : 'b'
     const bold = now && g.it === now.step ? ' font-weight="700"' : ''
-    s += `<text x="${n(g.cx)}" y="${Y + H + 14}" text-anchor="middle" class="m ${cls}" font-size="9.5"${bold}>${esc(g.it.id)}</text>`
+    s += `<text x="${n(g.cx)}" y="${Y + H + 14}" text-anchor="middle" class="m ${cls}" font-size="${n(size)}"${bold}>${esc(g.it.id)}</text>`
   }
 
   // now: an orange mark at the halftone's front, and what it is
