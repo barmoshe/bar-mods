@@ -188,9 +188,42 @@ async function write($: EngineInterface, edit: (text: string) => Edit, version: 
   return `Wrote line ${r.line + 1}: ${line}\n${s?.plan ? summary(s.plan, path).split('\n')[0] : ''}\nversion: ${Math.round(after?.mtimeMs ?? 0)}`
 }
 
+const PROGRESS = /^(?:plan-progress:)?progress$/
+const PROGRESS_LINE = /^\s*\/(?:plan-progress:)?progress(?:\s+([\s\S]*))?$/
+
+// The arguments of a /progress submission, or null when the prompt is anything else.
+function progressArgs(text: string, command: { name: string; args: string } | undefined): string | null {
+  if (command) return PROGRESS.test(command.name) ? command.args : null
+  const m = PROGRESS_LINE.exec(text)
+  return m ? (m[1] ?? '').trim() : null
+}
+
+// /progress [show | pin <file> | hide | unpin], and the tool's show, hide and unpin.
+async function runCommand($: EngineInterface, args: string): Promise<string> {
+  const [verb = '', ...rest] = args.trim().split(/\s+/)
+  if (verb === 'pin') return pin($, rest.join(' '))
+  if (verb === 'hide') {
+    await hide($)
+    return 'Plan progress hidden. /progress brings it back.'
+  }
+  if (verb === 'unpin') {
+    await update($, pinned, () => null)
+    await $.store.delete(pinKey())
+    await load($)
+    await $.ui.close({ id: PANE }).catch(() => undefined)
+    return 'No plan is pinned now.'
+  }
+  if (verb && verb !== 'show') return `/progress takes pin <file>, hide or unpin; "${verb}" is none of them.`
+  await show($)
+  const s = await read($, snap)
+  if (!s) return 'No plan is pinned. /progress pin path/to/plan.md pins one.'
+  return s.plan ? altOf(s.plan) : (s.error ?? 'No plan.')
+}
+
 async function runTool($: EngineInterface, input: Record<string, unknown>): Promise<string> {
   const action = str(input.action) ?? 'read'
   if (action === 'pin') return pin($, str(input.path) ?? '')
+  if (action === 'show' || action === 'hide' || action === 'unpin') return runCommand($, action)
   const version = typeof input.version === 'number' ? input.version : undefined
   if (action === 'read') {
     await load($)
@@ -217,7 +250,7 @@ async function runTool($: EngineInterface, input: Record<string, unknown>): Prom
       version,
     )
   }
-  return `No action "${action}". The actions are read, set, add and pin.`
+  return `No action "${action}". The actions are read, set, add, pin, show, hide and unpin.`
 }
 
 // ---------- drawing ----------
@@ -344,22 +377,17 @@ function runsEl(el: Els, runs: { text: string; tone: Tone }[]) {
 export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     root = e.cwd
-    await $.command.register({
-      name: 'progress',
-      description: 'Show the pinned plan\'s progress beside the conversation (pin <file>, hide, unpin)',
-      argumentHint: '[pin <file> | hide | unpin]',
-    })
     await $.tool.register({
       name: 'progress',
       description:
         'plan-progress: read and update the progress of the pinned plan, a plain Markdown block between <!-- plan-progress --> and <!-- /plan-progress --> whose lines are "- [state] id · title · note". ' +
         'Call read when you pick up a build. Call set as you start a step or sub-step (state "doing") and as you finish it (state "done", with the commit or PR as its note), and "waits" for a decision or gate that needs the person. ' +
-        'add puts a missing item after another (after) or as the last sub-step of one (under). pin names the plan file. ' +
+        'add puts a missing item after another (after) or as the last sub-step of one (under). pin names the plan file; show opens the pane beside the conversation, hide hides it and the band, unpin pins nothing. ' +
         'A write changes only that item\'s line; pass the version read returned and it refuses if the file changed since.',
       inputSchema: {
         type: 'object',
         properties: {
-          action: { type: 'string', enum: ['read', 'set', 'add', 'pin'] },
+          action: { type: 'string', enum: ['read', 'set', 'add', 'pin', 'show', 'hide', 'unpin'] },
           item: { type: 'string', description: 'set: the item\'s id (e.g. "2d"), or a gate\'s title' },
           state: { type: 'string', enum: ['todo', 'doing', 'done', 'waits', 'blocked', 'dropped'] },
           note: { type: 'string', description: 'set/add: replaces the fields after the title, e.g. a commit `abc1234` or a PR link; "" removes them' },
@@ -394,26 +422,19 @@ export const register: Register = on => {
     return next(e)
   })
 
-  on('command.run', { command: 'progress' }, async ($, e) => {
-    const [verb = '', ...rest] = e.args.trim().split(/\s+/)
-    if (verb === 'pin') return { text: await pin($, rest.join(' ')) }
-    if (verb === 'hide') {
-      await hide($)
-      return { text: 'Plan progress hidden. /progress brings it back.' }
-    }
-    if (verb === 'unpin') {
-      await update($, pinned, () => null)
-      await $.store.delete(pinKey())
-      await load($)
-      await $.ui.close({ id: PANE }).catch(() => undefined)
-      return { text: 'No plan is pinned now.' }
-    }
-    if (verb && verb !== 'show') return { text: `/progress takes pin <file>, hide or unpin; "${verb}" is none of them.` }
-    await show($)
-    const s = await read($, snap)
-    if (!s) return { text: 'No plan is pinned. /progress pin path/to/plan.md pins one.' }
-    return { text: s.plan ? altOf(s.plan) : (s.error ?? 'No plan.') }
-  })
+  // /progress: a command file (commands/progress.md) so every surface lists it, answered here
+  // without a model turn. Either spelling, /progress or /plan-progress:progress.
+  on('command.run', { command: /^(?:plan-progress:)?progress$/ }, async ($, e) => ({ text: await runCommand($, e.args) })).catch(
+    () => ({ text: 'plan-progress could not answer /progress. Ask Claude to use the plan-progress tool instead.' }),
+  )
+
+  // Where a command file arrives as a prompt (headless, the desktop app), answer it here and drop it, so
+  // no turn runs; the drop's text is what the person reads.
+  on('prompt.submit', async ($, e, next) => {
+    const asked = progressArgs(e.text, e.command)
+    if (asked === null) return next(e)
+    return { drop: await runCommand($, asked) }
+  }).catch(($, e, next) => next(e))
 
   // The agent's tool, and an edit to the pinned file showing at once rather than on the next poll.
   // One hook for both: the session's tool union does not name a plugin's own tool at type time.

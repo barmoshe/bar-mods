@@ -59,6 +59,8 @@ On the desktop the press line is an SVG carrying its own subsets of Heebo and Ca
 | `/progress hide` | hide the band and the pane until `/progress` |
 | `/progress unpin` | pin nothing |
 
+`/progress` is a command file (`commands/progress.md`), so the desktop app lists it from the session's start; the mod answers it at once, with no model turn. `/plan-progress:progress` is the same command. You can also just ask Claude ("show the plan's progress", "pin progress-3-1.md"): the tool does the same.
+
 ## The tool Claude calls
 
 `mcp__plan-progress__progress`, one tool with an `action`:
@@ -69,6 +71,7 @@ On the desktop the press line is an SVG carrying its own subsets of Heebo and Ca
 | `set` | `item`, `state`, `note?`, `version?` | sets an item's state: `todo`, `doing`, `done`, `waits`, `blocked`, `dropped`. `note` replaces the fields after the title (`""` removes them). |
 | `add` | `title`, `id?`, `state?`, `note?`, `after?` or `under?`, `version?` | a new item after another at its depth (after its sub-steps), or as the last sub-step of a step; at the end with neither |
 | `pin` | `path` | pins the plan file |
+| `show`, `hide`, `unpin` | | opens the pane, hides the band and the pane, pins nothing |
 
 `item` is an id (`2d`) or, for a gate, its title. A write reads the file fresh and changes only that item's line, every other byte kept, line endings included. With the `version` that `read` returned, it refuses when the file changed since (a hand edit), and it always refuses when the file changes while the edit is being made. Hand edits are normal: they show within two seconds, or at once when made with Edit or Write.
 
@@ -78,11 +81,11 @@ An agent working a plan calls `read` when it picks up the build, `set … doing`
 
 From `claude plugin validate`:
 
-- **hooks:** `session.start`, `command.run{command=progress}`, `tool.call`, `ui.render{component=AbovePrompt}`, `ui.render{component=Pane, requestId=plan-progress}`
-- **calls:** `$.clock.after`, `$.clock.every`, `$.clock.now`, `$.command.register`, `$.env.get`, `$.fs.read`, `$.fs.stat`, `$.fs.write`, `$.process.run` (Open the file), `$.session.version`, `$.state.get`, `$.state.set`, `$.store.delete`, `$.store.get`, `$.store.set`, `$.tool.register`, `$.ui.close`, `$.ui.open`, `$.ui.resolve`, `$.ui.toast`
+- **hooks:** `session.start`, `command.run{command=/^(?:plan-progress:)?progress$/}`, `prompt.submit`, `tool.call`, `ui.render{component=AbovePrompt}`, `ui.render{component=Pane, requestId=plan-progress}`
+- **calls:** `$.clock.after`, `$.clock.every`, `$.clock.now`, `$.env.get`, `$.fs.read`, `$.fs.stat`, `$.fs.write`, `$.process.run` (Open the file), `$.session.version`, `$.state.get`, `$.state.set`, `$.store.delete`, `$.store.get`, `$.store.set`, `$.tool.register`, `$.ui.close`, `$.ui.open`, `$.ui.resolve`, `$.ui.toast`
 - **env reads:** `HOME`, `OS`, `TERM_PROGRAM`, `WT_SESSION`
 
-The one `tool.call` hook answers the plan tool and watches Edit and Write on the pinned file; every other call passes through unchanged.
+The one `tool.call` hook answers the plan tool and watches Edit and Write on the pinned file; every other call passes through unchanged. The `prompt.submit` hook acts only on a prompt that is `/progress …`: where a command file arrives as a prompt (the desktop app, `claude -p`), it answers and drops it, so no turn runs. Every other prompt passes untouched.
 
 ## Surfaces
 
