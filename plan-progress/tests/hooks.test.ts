@@ -201,8 +201,8 @@ test('the brief, in the dock, on both surfaces: where, the gates ahead quietly, 
     expect(await ui.find({ type: 'Text', text: 'F  K  1' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: 'progress-3-1.md' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: 'changed 8 min ago' })).toBeDefined()
-    if (surface === 'desktop') expect(JSON.stringify(await ui.drawn())).toContain('>Step 4<tspan')
-    else expect(await ui.find({ type: 'Text', text: 'Step 4 of 15' })).toBeDefined()
+    if (surface === 'desktop') expect(JSON.stringify(await ui.drawn())).toContain('>3<tspan class=\\"i2\\" font-size=\\"20\\" dx=\\"6\\" letter-spacing=\\"-.4\\">of 15 done<')
+    else expect(await ui.find({ type: 'Text', text: '3 of 15 done' })).toBeDefined()
     await ui.press({ key: 'all' })
     expect(await ui.find({ type: 'Text', text: 'EVERY STEP' })).toBeDefined()
     await ui.press({ key: 'all' })
@@ -221,6 +221,16 @@ test('once the gates are due they need you, in the pane and the band, with the w
   expect(disk.filled).toEqual(['Go ahead with terraform apply.'])
   const band = await $.ui.mount({ ...BAND, surface: 'terminal' })
   expect(await band.find({ type: 'Text', text: 'terraform apply needs your word' })).toBeDefined()
+})
+
+test('a note in prose reads in the app\'s font; a commit or a PR in mono', async ($, on) => {
+  const disk = fresh(PLAN_3_1.replace('  - [ ] 2e · Exceptions on the trainee page, "היום", the workout window', '  - [ ] 2e · Exceptions on the trainee page · the add at 150×26 stopped at 900 of 9483'))
+  rig(on, disk)
+  await start($)
+  const ui = await $.ui.mount({ ...DOCK, surface: 'desktop' })
+  expect(JSON.stringify(await ui.drawn())).toContain('{"type":"Text","props":{"dimColor":true,"wrap":"wrap"},"children":["the add at 150×26 stopped at 900 of 9483"]}')
+  await ui.press({ key: 'all' })
+  expect(JSON.stringify(await ui.drawn())).toContain('{"type":"Text","props":{"mono":true,"dimColor":true,"wrap":"wrap"},"children":["POC #64"]}')
 })
 
 test('the live line says what the agent is doing while it works, and leaves when the turn ends', async ($, on) => {
@@ -243,7 +253,7 @@ test('the band: step and time on the desktop and the terminal, yielding when hid
   for (const surface of ['desktop', 'terminal'] as const) {
     const ui = await $.ui.mount({ ...BAND, surface })
     await ui.drawn()
-    expect(await ui.find({ type: 'Text', text: 'Step 4/15' })).toBeDefined()
+    expect(await ui.find({ type: 'Text', text: '3/15 done' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: surface === 'desktop' ? ' · 2 Exceptions and "שמור"' : ' · 2 Exceptions and "רומש"' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: 'drawn by Claude Code' })).toBeDefined()
     await ui.unmount()
@@ -251,9 +261,9 @@ test('the band: step and time on the desktop and the terminal, yielding when hid
   const desk = await $.ui.mount({ ...BAND, surface: 'desktop' })
   expect(await desk.find({ type: 'Svg' })).toBeDefined()
   await $.command.run({ command: 'progress', args: 'hide' })
-  expect(await desk.find({ type: 'Text', text: 'Step 4/15' })).toBeUndefined()
+  expect(await desk.find({ type: 'Text', text: '3/15 done' })).toBeUndefined()
   const shown = await $.command.run({ command: 'progress', args: '' })
-  expect(shown.text).toContain('step 4 of 15')
+  expect(shown.text).toContain('3 of 15 done (23%), now 2d')
 })
 
 test('pace shows once two steps were seen start and finish, as a range', async ($, on) => {
@@ -293,7 +303,7 @@ test('a /progress that arrives as a prompt is answered and dropped, with no turn
   const hid: any = await $.prompt.submit({ text: '/progress hide', wait: false } as any)
   expect(hid.drop).toBe('Plan progress hidden. /progress brings it back.')
   const shown: any = await $.prompt.submit({ text: '/plan-progress:progress', wait: false } as any)
-  expect(shown.drop).toContain('Version 3.1 · trainer studio: step 4 of 15')
+  expect(shown.drop).toContain('Version 3.1 · trainer studio: 3 of 15 done')
   const other: any = await $.prompt.submit({ text: 'what is the progress here?', wait: false } as any)
   expect(other.drop).toBeUndefined()
 })

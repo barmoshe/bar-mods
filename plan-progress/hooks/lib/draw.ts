@@ -9,7 +9,7 @@
 import type { Item, Plan } from '../../types'
 import { isRtlFirst } from './bidi'
 import { DISPLAY, FONT_FACES, MONO } from './fonts'
-import { COUNT_RULE, count, fillOf, findNow, gateTiers, label, position, STATE_WORDS, waiting } from './grammar'
+import { COUNT_RULE, count, fillOf, findNow, gateTiers, label, STATE_WORDS, waiting } from './grammar'
 
 // Light and dark inks; the SVG picks by the frame's colour scheme.
 const LIGHT = { ink: '#1E1D1B', ink2: '#5E5B55', blue: '#1F5FAE', orange: '#F2621B' }
@@ -171,7 +171,6 @@ export function briefSvg(plan: Plan, o: BriefOptions): string {
   const W = Math.round(o.width)
   const c = count(plan)
   const now = findNow(plan)
-  const p = position(plan)
   const motion = o.motion !== false
   let s = style(motion)
   const kicker = wrapLines((plan.title || 'Plan').toUpperCase(), W - 50, 10, 2, 0.62)
@@ -179,8 +178,9 @@ export function briefSvg(plan: Plan, o: BriefOptions): string {
     s += text(0, 11 + i * 13, line, 'm i2', 10, 'start', ' letter-spacing=".8"')
   })
   const hy = 11 + (kicker.length - 1) * 13 + 34
+  // how many are done leads: steps finish out of order, so a position ("step 9") can mislead
   const head = now
-    ? `<text x="0" y="${hy}" class="d i" font-size="31" letter-spacing="-1">Step ${p.at}<tspan class="i2" font-size="20" dx="6" letter-spacing="-.4">of ${p.of}</tspan></text>`
+    ? `<text x="0" y="${hy}" class="d i" font-size="31" letter-spacing="-1">${c.done}<tspan class="i2" font-size="20" dx="6" letter-spacing="-.4">of ${c.total} done</tspan></text>`
     : `<text x="0" y="${hy}" class="d i" font-size="31" letter-spacing="-1">Done<tspan class="i2" font-size="20" dx="6">${c.total} of ${c.total}</tspan></text>`
   s += head
   s += `<g><title>${esc(COUNT_RULE)}</title><text x="${W}" y="${hy}" text-anchor="end" class="m i2" font-size="12">${c.pct}%</text></g>`
@@ -239,7 +239,6 @@ export function paceSvg(minutes: { id: string; min: number }[], nowId: string | 
 export function altOf(plan: Plan): string {
   const c = count(plan)
   const now = findNow(plan)
-  const p = position(plan)
   const w = waiting(plan).length
-  return `${plan.title || 'Plan'}: ${now ? `step ${p.at} of ${p.of}, ${label(now.item)}` : 'every step done'}; ${c.done} of ${c.total} done (${c.pct}%)${w ? `, ${w} waiting on you` : ''}.`
+  return `${plan.title || 'Plan'}: ${c.done} of ${c.total} done (${c.pct}%)${now ? `, now ${label(now.item)}` : ', every step done'}${w ? `, ${w} waiting on you` : ''}.`
 }

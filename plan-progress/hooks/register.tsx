@@ -20,7 +20,6 @@ import {
   gatesAhead,
   label,
   parse,
-  position,
   setItem,
   summary,
   upNext,
@@ -156,8 +155,8 @@ async function pin($: EngineInterface, asked: string): Promise<string> {
   await $.store.delete(hideKey())
   await load($)
   $.ui.open({ id: PANE, title: TITLE }).catch(() => undefined)
-  const p = position(plan)
-  return `Pinned ${plan.title || stat.realPath}: step ${p.at} of ${p.of}, ${count(plan).pct}%.`
+  const c = count(plan)
+  return `Pinned ${plan.title || stat.realPath}: ${c.done} of ${c.total} done, ${c.pct}%.`
 }
 
 // A remote surface draws only https: links, so the desktop opens the file with the system's opener:
@@ -352,7 +351,8 @@ function noteEls(el: Els, notes: string[]) {
   return notes.map(note => {
     const link = /^\[([^\]]+)\]\((https?:[^)\s]+)\)$/.exec(note.trim())
     if (link && link[1] && link[2]) return <Link href={link[2]} label={link[1]} />
-    return <Text mono dimColor wrap="wrap">{noteText(note)}</Text>
+    const isCode = /^(`[^`]+`\s*)+$/.test(note.trim()) || /^(#?\d+|[A-Z]+ #\d+|[0-9a-f]{7,40})$/.test(note.trim())
+    return isCode ? <Text mono dimColor wrap="wrap">{noteText(note)}</Text> : <Text dimColor wrap="wrap">{noteText(note)}</Text>
   })
 }
 
@@ -371,7 +371,7 @@ function rowOf(el: Els, it: Item, isNow: boolean, where: Where, width: number, e
     </Box>
   )
   return (
-    <Box key={`row-${it.line}`} flexDirection="row" gap={1}>
+    <Box key={`row-${it.line}`} flexDirection="row" gap={1} alignItems="flex-start">
       <Text color={COLOR[tone]}>{isNow ? '◉' : GLYPH[it.state]}</Text>
       <Box width={idCells} flexShrink={0}>
         <Text mono dimColor={!isNow}>{id}</Text>
@@ -427,7 +427,7 @@ function needsPart($: EngineInterface, el: Els, v: View) {
         {caption(el, `NEEDS YOU NOW · ${w.length}`)}
         {w.map(it => (
           <Box key={`need-${it.line}`} flexDirection="column">
-            <Box flexDirection="row" gap={1}>
+            <Box flexDirection="row" gap={1} alignItems="flex-start">
               <Text color={COLOR.blue}>◆</Text>
               <Text weight="semibold" wrap="wrap">
                 {bidi(it.title, v.where)}
@@ -691,12 +691,12 @@ export const register: Register = on => {
     if (e.props.hasSurvey || !s?.plan || (await read($, isHidden))) return next(e)
     const plan = s.plan
     const n = findNow(plan)
-    const p = position(plan)
+    const done = count(plan)
     const hs = (await read($, hist)) ?? emptyHistory()
     const clock = await $.clock.now()
     const where = await whereOf($, e.surface)
     const t = n ? hs.items[n.step.id] : undefined
-    const lead = n ? `Step ${p.at}/${p.of}` : 'Done'
+    const lead = n ? `${done.done}/${done.total} done` : 'Done'
     const rest = n ? ` · ${n.step.id ? `${n.step.id} ` : ''}${bidi(n.step.title, where)}${t?.startedAt !== undefined ? ` · ${since(t.startedAt, clock)}` : ''}` : ` · every step of ${bidi(plan.title || 'the plan', where)}`
     const need = waiting(plan)[0]
     const lag = lags(plan, hs)[0]
@@ -832,7 +832,7 @@ export const register: Register = on => {
 
     if (e.surface === 'desktop') {
       const { Svg } = $.ui.resolve(e)
-      const width = Math.max(280, Math.min(1100, Math.round(cols * 7.2)))
+      const width = Math.max(180, Math.min(1100, Math.round(cols * 7)))
       const isMoment = m !== null && m.until > clock
       const svg = briefSvg(plan, {
         width,
@@ -858,7 +858,6 @@ export const register: Register = on => {
 
     // The terminal: the same brief in characters.
     const c = count(plan)
-    const p = position(plan)
     return (
       <Box flexDirection="column" gap={1}>
         <Box flexDirection="column">
@@ -866,7 +865,7 @@ export const register: Register = on => {
             {bidi((plan.title || 'Plan').toUpperCase(), where)}
           </Text>
           <Box flexDirection="row" justifyContent="space-between">
-            <Text weight="bold">{n ? `Step ${p.at} of ${p.of}` : `Done · ${c.total} of ${c.total}`}</Text>
+            <Text weight="bold">{n ? `${c.done} of ${c.total} done` : `Done · ${c.total} of ${c.total}`}</Text>
             <Text dimColor>{`${c.pct}%`}</Text>
           </Box>
           {runsEl(el, barRuns(plan, Math.max(12, cols - 2)))}

@@ -1,6 +1,6 @@
 # plan-progress
 
-Where a long build stands, beside the conversation, and a plan that keeps itself current. I keep builds as a plan of numbered steps in plain Markdown. This mod answers the three questions I ask it, in order: where are we ("Step 7 of 15"), what is happening now (the step, how long it has run, what Claude is doing this minute), and what needs me (only when something does). Every agent's plan view fails the same way, the agent forgets to update it, so this one also reads the evidence: commits that name a step move the plan, and when the work has moved past an open step, it says so.
+Where a long build stands, beside the conversation, and a plan that keeps itself current. I keep builds as a plan of numbered steps in plain Markdown. This mod answers the three questions I ask it, in order: how far are we ("13 of 16 done"), what is happening now (the step, how long it has run, what Claude is doing this minute), and what needs me (only when something does). Every agent's plan view fails the same way, the agent forgets to update it, so this one also reads the evidence: commits that name a step move the plan, and when the work has moved past an open step, it says so.
 
 **What it reads and writes.**
 - It reads one Markdown file, the plan you pin, and checks it every 2 seconds (a stat; it reads the file only when it changed).
@@ -52,9 +52,7 @@ Write the step's id after "step" or "steps" in the commit message, the way the t
 
 ## How it counts
 
-Each top-level step weighs one. A step with sub-steps fills by the share of them done; a step without sub-steps counts only once it is done, so `[~]` alone adds nothing. Gates and dropped items are not counted. The percentage is rounded down, so 100% means every step is done. The pane leads with the position ("Step 7 of 15"), the step in progress among the steps that count, and keeps the percentage small: steps can be added, and a percentage hides that.
-
-**Now** is the deepest item marked `[~]`; with none, the first item not done.
+Each top-level step weighs one. A step with sub-steps fills by the share of them done; a step without sub-steps counts only once it is done, so `[~]` alone adds nothing. Gates and dropped items are not counted. The percentage is rounded down, so 100% means every step is done. The pane leads with how many steps are done ("13 of 16 done") and keeps the percentage small. A position ("step 9 of 16") would mislead: steps finish out of order, and steps can be added.
 
 **Pace** appears once two steps were seen both start and finish: the minutes each took, a bar per step, and the range a step takes. What is left is that range times the steps left, in hours, always a range ("about 7-10 h"). There is no finish time before there is pace to read.
 
@@ -62,14 +60,14 @@ Each top-level step weighs one. A step with sub-steps fills by the share of them
 
 **The pane** (`/progress`), top to bottom; a section with nothing in it takes no room:
 
-- the plan's name, **Step 7 of 15** in big type, the percentage small, and the strip: ink for what is done, halftone at the front with the orange mark, a blueprint outline ahead, a diamond per gate. Hover a segment for its title, state and notes.
+- the plan's name, **13 of 16 done** in big type, the percentage small, and the strip: ink for what is done, halftone at the front with the orange mark, a blueprint outline ahead, a diamond per gate. Hover a segment for its title, state and notes.
 - **The plan is behind:** a step the commits moved past, with Mark done and Not yet.
 - **Needs you now:** a decision marked `[?]`, or a gate that is due, with a button that puts "Go ahead with …" in the prompt box for you to send. Otherwise one quiet line: "◇ 3 gates ahead, after PR: …".
 - **Now:** the step, how long ago it started, its open sub-steps with their notes, its commits, and while Claude works, one live line of what it is doing ("Claude · Run the emulator and browser suites").
 - **Next:** the next three steps. **Done:** one line of ids and when the last one closed; Every step shows them all. **Pace**, when there is one.
 - the file, when it changed, and Every step, Hide, Pin another plan, Open the file.
 
-**The band**, above the prompt: the strip, "Step 7/15 · 4 The engine's speed · 12 min". A second line only when a gate is due ("◆ terraform apply needs your word") or the plan is behind. Press it to open the pane. Nothing when no plan is pinned or it is hidden.
+**The band**, above the prompt: the strip, "13/16 done · 6 Demo data · 9 h". A second line only when a gate is due ("◆ terraform apply needs your word") or the plan is behind. Press it to open the pane. Nothing when no plan is pinned or it is hidden.
 
 **A toast** when a step turns done ("Step 3 done · 5 of 15"), and a short moment when the whole plan does. Sub-steps make no noise.
 
